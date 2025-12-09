@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
+import type {
   AgentCard,
   CancelTaskResponse,
   GetTaskResponse,
   MessageSendParams,
   SendMessageResponse,
 } from '@a2a-js/sdk';
-import { A2AClient, A2AClientOptions } from '@a2a-js/sdk/client';
+import { A2AClient, type A2AClientOptions } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 
 // TODO: uncomment
@@ -114,9 +114,10 @@ export class A2AClientManager {
             if (message.parts) {
               // Map parts to the simpler structure used in the notebook: { text: "..." }
               // avoiding 'kind' field if possible
-              message.content = message.parts.map((part: any) => {
-                if (part.kind === 'text' && part.text) {
-                  return { text: part.text };
+              message.content = message.parts.map((part: unknown) => {
+                const p = part as { kind?: string; text?: string };
+                if (p.kind === 'text' && p.text) {
+                  return { text: p.text };
                 }
                 return part;
               });
@@ -154,7 +155,7 @@ export class A2AClientManager {
           const wrappedResponse = {
             jsonrpc: '2.0',
             id: originalRequestId,
-            result: result,
+            result,
           };
           console.log(
             'A2AClient wrapped response:',
@@ -209,10 +210,9 @@ export class A2AClientManager {
         parts: [{ kind: 'text', text: message }],
       },
       configuration: {
-        blocking: true
-      }
+        blocking: true,
+      },
     };
-
 
     return client.sendMessage(messageParams);
   }

@@ -10,10 +10,10 @@ import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
-  ToolResult,
+  type ToolResult,
 } from '../tools/tools.js';
 import { A2AClientManager } from './a2a-client-manager.js';
-import { Message, TextPart, DataPart, FilePart, Task } from '@a2a-js/sdk';
+import type { Message, TextPart, DataPart, FilePart, Task } from '@a2a-js/sdk';
 
 class A2AToolInvocation extends BaseToolInvocation<
   { message: string },
@@ -163,9 +163,11 @@ export function extractTaskText(task: Task): string {
     for (const artifact of task.artifacts) {
       output += `  - Name: ${artifact.name}\n`;
       if (artifact.parts && artifact.parts.length > 0) {
-        const artifactText = extractMessageText(
-          { kind: 'message', parts: artifact.parts, messageId: '' } as Message,
-        );
+        const artifactText = extractMessageText({
+          kind: 'message',
+          parts: artifact.parts,
+          messageId: '',
+        } as Message);
         if (artifactText) {
           output += `    Content: ${artifactText}\n`;
         }

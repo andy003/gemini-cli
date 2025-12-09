@@ -8,9 +8,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { A2AToolManager } from './a2a-tool-manager.js';
-import { A2AAgentConfig, Config, ConfigParameters } from '../config/config.js';
+import {
+  type A2AAgentConfig,
+  Config,
+  type ConfigParameters,
+} from '../config/config.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
-import { AgentCard } from '@a2a-js/sdk';
+import type { AgentCard } from '@a2a-js/sdk';
 
 vi.mock('../config/config.js');
 vi.mock('../tools/tool-registry.js');

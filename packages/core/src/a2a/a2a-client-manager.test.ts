@@ -6,7 +6,7 @@
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { A2AClientManager } from './a2a-client-manager.js';
-import { AgentCard } from '@a2a-js/sdk';
+import type { AgentCard } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
 
 vi.mock('@a2a-js/sdk/client', () => {
