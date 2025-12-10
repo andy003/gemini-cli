@@ -11,9 +11,13 @@ import {
   BaseToolInvocation,
   Kind,
   type ToolResult,
+  type ToolCallConfirmationDetails,
+  ToolConfirmationOutcome,
 } from '../tools/tools.js';
 import { A2AClientManager } from './a2a-client-manager.js';
 import type { Message, TextPart, DataPart, FilePart, Task } from '@a2a-js/sdk';
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
+import { MessageBusType } from '../confirmation-bus/types.js';
 
 class A2AToolInvocation extends BaseToolInvocation<
   { message: string },
@@ -22,12 +26,35 @@ class A2AToolInvocation extends BaseToolInvocation<
   constructor(
     private readonly agentName: string,
     params: { message: string },
+    messageBus?: MessageBus,
   ) {
-    super(params);
+    super(params, messageBus, agentName, agentName);
   }
 
   getDescription(): string {
     return `Calling agent ${this.agentName} with message: ${this.params.message}`;
+  }
+
+  protected override async getConfirmationDetails(
+    _abortSignal: AbortSignal,
+  ): Promise<ToolCallConfirmationDetails | false> {
+    const confirmationDetails: ToolCallConfirmationDetails = {
+      type: 'info',
+      title: `Confirm: ${this._toolDisplayName || this._toolName}`,
+      prompt: this.getDescription(),
+      onConfirm: async (outcome: ToolConfirmationOutcome) => {
+        if (outcome === ToolConfirmationOutcome.ProceedAlways) {
+          if (this.messageBus && this._toolName) {
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            this.messageBus.publish({
+              type: MessageBusType.UPDATE_POLICY,
+              toolName: this._toolName,
+            });
+          }
+        }
+      },
+    };
+    return confirmationDetails;
   }
 
   async execute(): Promise<ToolResult> {
@@ -68,6 +95,7 @@ export class A2ATool extends BaseDeclarativeTool<
   constructor(
     private readonly agentName: string,
     description: string,
+    messageBus?: MessageBus,
   ) {
     super(
       agentName,
@@ -84,13 +112,16 @@ export class A2ATool extends BaseDeclarativeTool<
         },
         required: ['message'],
       },
+      undefined, // isOutputMarkdown
+      undefined, // canUpdateOutput
+      messageBus,
     );
   }
 
   protected createInvocation(params: {
     message: string;
   }): BaseToolInvocation<{ message: string }, ToolResult> {
-    return new A2AToolInvocation(this.agentName, params);
+    return new A2AToolInvocation(this.agentName, params, this.messageBus);
   }
 }
 

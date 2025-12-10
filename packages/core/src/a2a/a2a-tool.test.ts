@@ -26,6 +26,7 @@ vi.mock('./a2a-client-manager.js', () => ({
   },
 }));
 
+// TODO: add confirmation details testing
 describe('A2ATool', () => {
   const agentName = 'TestAgent';
   const description = 'A test skill';

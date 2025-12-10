@@ -36,7 +36,11 @@ export class A2AToolManager {
           const description = agentCard.skills
             .map((skill) => `${skill.name}: ${skill.description}`)
             .join('\n');
-          const tool = new A2ATool(name, description);
+          const tool = new A2ATool(
+            name,
+            description,
+            this.config.getMessageBus(),
+          );
           this.toolRegistry.registerTool(tool);
         }
       } catch (e) {

@@ -15,6 +15,7 @@ import {
 } from '../config/config.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
 import type { AgentCard } from '@a2a-js/sdk';
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
 vi.mock('../config/config.js');
 vi.mock('../tools/tool-registry.js');
@@ -35,6 +36,7 @@ describe('A2AToolManager', () => {
 
   beforeEach(() => {
     config = new Config({} as ConfigParameters);
+    vi.spyOn(config, 'getMessageBus').mockReturnValue({} as MessageBus);
     toolRegistry = new ToolRegistry(config);
     toolManager = new A2AToolManager(config, toolRegistry);
     vi.clearAllMocks();
