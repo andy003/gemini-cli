@@ -14,7 +14,7 @@ import {
 import type { LoadedSettings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
 
-export type VimMode = 'NORMAL' | 'INSERT';
+export type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL' | 'VISUAL_LINE';
 
 interface VimModeContextType {
   vimEnabled: boolean;

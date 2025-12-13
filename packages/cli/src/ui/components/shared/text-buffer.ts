@@ -835,7 +835,7 @@ function calculateLayout(
 
 // Calculates the visual cursor position based on a pre-calculated layout.
 // This is a lightweight operation.
-function calculateVisualCursorFromLayout(
+export function calculateVisualCursorFromLayout(
   layout: VisualLayout,
   logicalCursor: [number, number],
 ): [number, number] {
@@ -894,11 +894,12 @@ export interface TextBufferState {
   preferredCol: number | null; // This is the logical character offset in the visual line
   undoStack: UndoHistoryEntry[];
   redoStack: UndoHistoryEntry[];
-  clipboard: string | null;
   selectionAnchor: [number, number] | null;
   viewportWidth: number;
   viewportHeight: number;
   visualLayout: VisualLayout;
+  lastSearchQuery?: string;
+  clipboard: string | null;
 }
 
 const historyLimit = 100;
@@ -908,6 +909,7 @@ export const pushUndo = (currentState: TextBufferState): TextBufferState => {
     lines: [...currentState.lines],
     cursorRow: currentState.cursorRow,
     cursorCol: currentState.cursorCol,
+    clipboard: currentState.clipboard,
   };
   const newStack = [...currentState.undoStack, snapshot];
   if (newStack.length > historyLimit) {
@@ -989,7 +991,20 @@ export type TextBufferAction =
   | { type: 'vim_move_to_first_line' }
   | { type: 'vim_move_to_last_line' }
   | { type: 'vim_move_to_line'; payload: { lineNumber: number } }
-  | { type: 'vim_escape_insert_mode' };
+  | { type: 'vim_escape_insert_mode' }
+  | { type: 'vim_set_selection_anchor' }
+  | { type: 'vim_clear_selection' }
+  | {
+      type: 'vim_search';
+      payload: { query: string; direction: 'forward' | 'backward' };
+    }
+  | {
+      type: 'vim_search_next';
+      payload: { direction: 'forward' | 'backward' };
+    }
+  | { type: 'vim_yank'; payload: { text: string } }
+  | { type: 'vim_yank_selection' }
+  | { type: 'vim_paste'; payload: { direction: 'before' | 'after' } };
 
 export interface TextBufferOptions {
   inputFilter?: (text: string) => string;
@@ -1526,6 +1541,13 @@ function textBufferReducerLogic(
     case 'vim_move_to_first_line':
     case 'vim_move_to_last_line':
     case 'vim_move_to_line':
+    case 'vim_search':
+    case 'vim_search_next':
+    case 'vim_yank':
+    case 'vim_yank_selection':
+    case 'vim_paste':
+    case 'vim_set_selection_anchor':
+    case 'vim_clear_selection':
     case 'vim_escape_insert_mode':
       return handleVimAction(state, action as VimAction);
 
@@ -1588,11 +1610,12 @@ export function useTextBuffer({
       preferredCol: null,
       undoStack: [],
       redoStack: [],
-      clipboard: null,
       selectionAnchor: null,
       viewportWidth: viewport.width,
       viewportHeight: viewport.height,
       visualLayout,
+      lastSearchQuery: undefined,
+      clipboard: null,
     };
   }, [initialText, initialCursorOffset, viewport.width, viewport.height]);
 
@@ -1885,6 +1908,40 @@ export function useTextBuffer({
     dispatch({ type: 'vim_escape_insert_mode' });
   }, []);
 
+  const vimSetSelectionAnchor = useCallback((): void => {
+    dispatch({ type: 'vim_set_selection_anchor' });
+  }, []);
+
+  const vimClearSelection = useCallback((): void => {
+    dispatch({ type: 'vim_clear_selection' });
+  }, []);
+
+  const vimSearch = useCallback(
+    (query: string, direction: 'forward' | 'backward'): void => {
+      dispatch({ type: 'vim_search', payload: { query, direction } });
+    },
+    [],
+  );
+
+  const vimSearchNext = useCallback(
+    (direction: 'forward' | 'backward'): void => {
+      dispatch({ type: 'vim_search_next', payload: { direction } });
+    },
+    [],
+  );
+
+  const vimYank = useCallback((text: string): void => {
+    dispatch({ type: 'vim_yank', payload: { text } });
+  }, []);
+
+  const vimYankSelection = useCallback((): void => {
+    dispatch({ type: 'vim_yank_selection' });
+  }, []);
+
+  const vimPaste = useCallback((direction: 'before' | 'after'): void => {
+    dispatch({ type: 'vim_paste', payload: { direction } });
+  }, []);
+
   const openInExternalEditor = useCallback(
     async (opts: { editor?: string } = {}): Promise<void> => {
       const editor =
@@ -2157,6 +2214,13 @@ export function useTextBuffer({
       vimMoveToLastLine,
       vimMoveToLine,
       vimEscapeInsertMode,
+      vimSetSelectionAnchor,
+      vimClearSelection,
+      vimSearch,
+      vimSearchNext,
+      vimYank,
+      vimYankSelection,
+      vimPaste,
     }),
     [
       lines,
@@ -2220,6 +2284,13 @@ export function useTextBuffer({
       vimMoveToLastLine,
       vimMoveToLine,
       vimEscapeInsertMode,
+      vimSetSelectionAnchor,
+      vimClearSelection,
+      vimSearch,
+      vimSearchNext,
+      vimYank,
+      vimYankSelection,
+      vimPaste,
       visualToLogicalMap,
     ],
   );
@@ -2468,4 +2539,11 @@ export interface TextBuffer {
    * Handle escape from insert mode (moves cursor left if not at line start)
    */
   vimEscapeInsertMode: () => void;
+  vimSetSelectionAnchor: () => void;
+  vimClearSelection: () => void;
+  vimSearch: (query: string, direction: 'forward' | 'backward') => void;
+  vimSearchNext: (direction: 'forward' | 'backward') => void;
+  vimYank: (text: string) => void;
+  vimYankSelection: () => void;
+  vimPaste: (direction: 'before' | 'after') => void;
 }

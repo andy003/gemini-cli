@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { handleVimAction } from './vim-buffer-actions.js';
 import type { TextBufferState, VisualLayout } from './text-buffer.js';
+import '../../../test-utils/customMatchers.js';
 
 const defaultVisualLayout: VisualLayout = {
   visualLines: [''],

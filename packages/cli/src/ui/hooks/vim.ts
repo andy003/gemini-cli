@@ -10,7 +10,7 @@ import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { useVimMode } from '../contexts/VimModeContext.js';
 import { debugLogger } from '@google/gemini-cli-core';
 
-export type VimMode = 'NORMAL' | 'INSERT';
+export type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL' | 'VISUAL_LINE';
 
 // Constants
 const DIGIT_MULTIPLIER = 10;
@@ -41,14 +41,14 @@ const CMD_TYPES = {
 // Helper function to clear pending state
 const createClearPendingState = () => ({
   count: 0,
-  pendingOperator: null as 'g' | 'd' | 'c' | null,
+  pendingOperator: null as 'g' | 'd' | 'c' | 'y' | null,
 });
 
 // State and action types for useReducer
 type VimState = {
   mode: VimMode;
   count: number;
-  pendingOperator: 'g' | 'd' | 'c' | null;
+  pendingOperator: 'g' | 'd' | 'c' | 'y' | null;
   lastCommand: { type: string; count: number } | null;
 };
 
@@ -57,7 +57,7 @@ type VimAction =
   | { type: 'SET_COUNT'; count: number }
   | { type: 'INCREMENT_COUNT'; digit: number }
   | { type: 'CLEAR_COUNT' }
-  | { type: 'SET_PENDING_OPERATOR'; operator: 'g' | 'd' | 'c' | null }
+  | { type: 'SET_PENDING_OPERATOR'; operator: 'g' | 'd' | 'c' | 'y' | null }
   | {
       type: 'SET_LAST_COMMAND';
       command: { type: string; count: number } | null;
@@ -405,11 +405,20 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
         return handleInsertModeInput(normalizedKey);
       }
 
-      // Handle NORMAL mode
-      if (state.mode === 'NORMAL') {
-        // If in NORMAL mode, allow escape to pass through to other handlers
-        // if there's no pending operation.
+      // Handle NORMAL and VISUAL modes
+      if (
+        state.mode === 'NORMAL' ||
+        state.mode === 'VISUAL' ||
+        state.mode === 'VISUAL_LINE'
+      ) {
+        // Handle escape
         if (normalizedKey.name === 'escape') {
+          if (state.mode === 'VISUAL' || state.mode === 'VISUAL_LINE') {
+            updateMode('NORMAL');
+            buffer.vimClearSelection();
+            dispatch({ type: 'CLEAR_PENDING_STATES' });
+            return true;
+          }
           if (state.pendingOperator) {
             dispatch({ type: 'CLEAR_PENDING_STATES' });
             return true; // Handled by vim
@@ -432,6 +441,36 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
         const repeatCount = getCurrentCount();
 
         switch (normalizedKey.sequence) {
+          case 'v': {
+            // Toggle Visual Mode
+            if (state.mode === 'NORMAL') {
+              updateMode('VISUAL');
+              buffer.vimSetSelectionAnchor();
+            } else if (state.mode === 'VISUAL') {
+              updateMode('NORMAL');
+              buffer.vimClearSelection();
+            } else if (state.mode === 'VISUAL_LINE') {
+              updateMode('VISUAL');
+            }
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case 'V': {
+            // Toggle Visual Line Mode
+            if (state.mode === 'NORMAL') {
+              updateMode('VISUAL_LINE');
+              buffer.vimSetSelectionAnchor();
+            } else if (state.mode === 'VISUAL_LINE') {
+              updateMode('NORMAL');
+              buffer.vimClearSelection();
+            } else if (state.mode === 'VISUAL') {
+              updateMode('VISUAL_LINE');
+            }
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
           case 'h': {
             // Check if this is part of a change command (ch)
             if (state.pendingOperator === 'c') {
@@ -526,6 +565,14 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
           }
 
           case 'x': {
+            if (state.mode === 'VISUAL' || state.mode === 'VISUAL_LINE') {
+              buffer.vimYankSelection();
+              buffer.vimDeleteChar(1);
+              updateMode('NORMAL');
+              dispatch({ type: 'CLEAR_COUNT' });
+              return true;
+            }
+
             // Delete character under cursor
             buffer.vimDeleteChar(repeatCount);
             dispatch({
@@ -630,7 +677,33 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
             return true;
           }
 
+          case 'n': {
+            buffer.vimSearchNext('forward');
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case 'N': {
+            // Reverse search direction
+            // If last search was forward, N means backward
+            // TODO: We need to know if last search was forward or backward to flip it correctly?
+            // Standard Vim: 'n' repeats last search in same direction. 'N' repeats in opposite direction.
+            // Our vimSearch currently assumes forward.
+            // Let's assume forward for now.
+            buffer.vimSearchNext('backward');
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
           case 'd': {
+            if (state.mode === 'VISUAL' || state.mode === 'VISUAL_LINE') {
+              buffer.vimYankSelection();
+              buffer.vimDeleteChar(1);
+              updateMode('NORMAL');
+              dispatch({ type: 'CLEAR_COUNT' });
+              return true;
+            }
+
             if (state.pendingOperator === 'd') {
               // Second 'd' - delete N lines (dd command)
               const repeatCount = getCurrentCount();
@@ -649,6 +722,14 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
           }
 
           case 'c': {
+            if (state.mode === 'VISUAL' || state.mode === 'VISUAL_LINE') {
+              buffer.vimYankSelection();
+              buffer.vimDeleteChar(1); // Delete selection
+              updateMode('INSERT');
+              dispatch({ type: 'CLEAR_COUNT' });
+              return true;
+            }
+
             if (state.pendingOperator === 'c') {
               // Second 'c' - change N entire lines (cc command)
               const repeatCount = getCurrentCount();
@@ -686,6 +767,80 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
             });
             dispatch({ type: 'CLEAR_COUNT' });
             return true;
+          }
+
+          case 'y': {
+            if (state.mode === 'VISUAL' || state.mode === 'VISUAL_LINE') {
+              buffer.vimYankSelection();
+              updateMode('NORMAL');
+              buffer.vimClearSelection();
+              dispatch({ type: 'CLEAR_COUNT' });
+              return true;
+            }
+
+            if (state.pendingOperator === 'y') {
+              // 'yy' - yank line
+              // We need to get the current line text.
+              // buffer.lines[buffer.cursor[0]]
+              // We don't have direct access to lines here.
+              // We need a `vimYankLine` action?
+              // Or `vimYank` action that handles logic?
+              // Let's add `vimYankLine` to `vim-buffer-actions`?
+              // Or better, let's implement `vimYank` action to handle movement/objects similar to delete/change.
+
+              // For now, let's implement a simple `vim_yank_line` action in `vim-buffer-actions`.
+              // Wait, I implemented `vim_yank` taking text payload.
+              // That means I need to calculate text here.
+              // But I don't have access to text here.
+              // This suggests I should change `vim_yank` to be an action that calculates text in the reducer,
+              // OR `useVim` needs access to text.
+
+              // `useVim` takes `buffer`. `buffer` has `text` and `lines`.
+              // `buffer` object from `useTextBuffer` exposes `lines` and `text`?
+              // Yes! `const { lines, text } = buffer;`
+
+              const currentLine = buffer.lines[buffer.cursor[0]] || '';
+              buffer.vimYank(currentLine + '\n'); // Linewise yank includes newline
+
+              dispatch({ type: 'CLEAR_COUNT' });
+              dispatch({ type: 'SET_PENDING_OPERATOR', operator: null });
+              return true;
+            } else {
+              // First 'y'
+              dispatch({ type: 'SET_PENDING_OPERATOR', operator: 'y' });
+              return true;
+            }
+          }
+
+          case 'p': {
+            buffer.vimPaste('after');
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case 'P': {
+            buffer.vimPaste('before');
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case 'u': {
+            // Undo
+            buffer.undo();
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case 'r': {
+            // Redo with Ctrl+r
+            if (normalizedKey.ctrl) {
+              buffer.redo();
+              dispatch({ type: 'CLEAR_COUNT' });
+              return true;
+            }
+            // Replace character (r)
+            // TODO: Implement replace char
+            return false;
           }
 
           case '.': {

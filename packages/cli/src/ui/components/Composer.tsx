@@ -36,7 +36,7 @@ export const Composer = () => {
   const isScreenReaderEnabled = useIsScreenReaderEnabled();
   const uiState = useUIState();
   const uiActions = useUIActions();
-  const { vimEnabled } = useVimMode();
+  const { vimEnabled, vimMode } = useVimMode();
   const terminalWidth = process.stdout.columns;
   const isNarrow = isNarrowWidth(terminalWidth);
   const debugConsoleMaxHeight = Math.floor(Math.max(terminalWidth * 0.2, 5));
@@ -168,6 +168,7 @@ export const Composer = () => {
           onEscapePromptChange={uiActions.onEscapePromptChange}
           focus={true}
           vimHandleInput={uiActions.vimHandleInput}
+          vimMode={vimMode}
           isEmbeddedShellFocused={uiState.embeddedShellFocused}
           popAllMessages={uiActions.popAllMessages}
           placeholder={

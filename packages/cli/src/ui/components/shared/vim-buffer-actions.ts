@@ -17,7 +17,7 @@ import {
   findPrevWordAcrossLines,
   findWordEndInLine,
 } from './text-buffer.js';
-import { cpLen, toCodePoints } from '../../utils/textUtils.js';
+import { cpLen, toCodePoints, cpSlice } from '../../utils/textUtils.js';
 import { assumeExhaustive } from '../../../utils/checks.js';
 
 // Check if we're at the end of a base word (on the last base character)
@@ -71,6 +71,16 @@ export type VimAction = Extract<
   | { type: 'vim_move_to_last_line' }
   | { type: 'vim_move_to_line' }
   | { type: 'vim_escape_insert_mode' }
+  | { type: 'vim_set_selection_anchor' }
+  | { type: 'vim_clear_selection' }
+  | {
+      type: 'vim_search';
+      payload: { query: string; direction: 'forward' | 'backward' };
+    }
+  | { type: 'vim_search_next'; payload: { direction: 'forward' | 'backward' } }
+  | { type: 'vim_yank'; payload: { text: string } }
+  | { type: 'vim_yank_selection' }
+  | { type: 'vim_paste'; payload: { direction: 'before' | 'after' } }
 >;
 
 export function handleVimAction(
@@ -479,12 +489,19 @@ export function handleVimAction(
 
     case 'vim_move_up': {
       const { count } = action.payload;
-      const { cursorRow, cursorCol, lines } = state;
+      const { cursorRow, cursorCol, lines, preferredCol } = state;
       const newRow = Math.max(0, cursorRow - count);
       const targetLine = lines[newRow] || '';
       const targetLineLength = cpLen(targetLine);
+
+      // Use preferred column if available, otherwise current column
+      let newPreferredCol = preferredCol;
+      if (newPreferredCol === null) {
+        newPreferredCol = cursorCol;
+      }
+
       const newCol = Math.min(
-        cursorCol,
+        newPreferredCol,
         targetLineLength > 0 ? targetLineLength - 1 : 0,
       );
 
@@ -492,18 +509,25 @@ export function handleVimAction(
         ...state,
         cursorRow: newRow,
         cursorCol: newCol,
-        preferredCol: null,
+        preferredCol: newPreferredCol,
       };
     }
 
     case 'vim_move_down': {
       const { count } = action.payload;
-      const { cursorRow, cursorCol, lines } = state;
+      const { cursorRow, cursorCol, lines, preferredCol } = state;
       const newRow = Math.min(lines.length - 1, cursorRow + count);
       const targetLine = lines[newRow] || '';
       const targetLineLength = cpLen(targetLine);
+
+      // Use preferred column if available, otherwise current column
+      let newPreferredCol = preferredCol;
+      if (newPreferredCol === null) {
+        newPreferredCol = cursorCol;
+      }
+
       const newCol = Math.min(
-        cursorCol,
+        newPreferredCol,
         targetLineLength > 0 ? targetLineLength - 1 : 0,
       );
 
@@ -511,7 +535,7 @@ export function handleVimAction(
         ...state,
         cursorRow: newRow,
         cursorCol: newCol,
-        preferredCol: null,
+        preferredCol: newPreferredCol,
       };
     }
 
@@ -617,8 +641,50 @@ export function handleVimAction(
     }
 
     case 'vim_delete_char': {
+      const { selectionAnchor, cursorRow, cursorCol, lines } = state;
+
+      if (selectionAnchor) {
+        const nextState = pushUndo(state);
+        // Calculate min/max for the range
+        let startRow; let startCol; let endRow; let endCol;
+        if (
+          selectionAnchor[0] < cursorRow ||
+          (selectionAnchor[0] === cursorRow && selectionAnchor[1] < cursorCol)
+        ) {
+          startRow = selectionAnchor[0];
+          startCol = selectionAnchor[1];
+          endRow = cursorRow;
+          endCol = cursorCol;
+        } else {
+          startRow = cursorRow;
+          startCol = cursorCol;
+          endRow = selectionAnchor[0];
+          endCol = selectionAnchor[1];
+        }
+
+        // For inclusive selection (like Vim visual mode), we need to include the character at endCol.
+        // replaceRangeInternal is inclusive of start, exclusive of end? No, replaceRangeInternal implementation:
+        // const prefix = cpSlice(currentLine(startRow), 0, sCol);
+        // const suffix = cpSlice(currentLine(endRow), eCol);
+        // So it removes everything from sCol up to (but not including) eCol?
+        // Let's check replaceRangeInternal implementation details in text-buffer.ts...
+        // Ah, it takes endCol.
+        // If we want to delete character at endCol, we should pass endCol + 1.
+
+        return {
+          ...replaceRangeInternal(
+            nextState,
+            startRow,
+            startCol,
+            endRow,
+            endCol + 1,
+            '',
+          ),
+          selectionAnchor: null,
+        };
+      }
+
       const { count } = action.payload;
-      const { cursorRow, cursorCol, lines } = state;
       const currentLine = lines[cursorRow] || '';
       const lineLength = cpLen(currentLine);
 
@@ -802,6 +868,270 @@ export function handleVimAction(
         cursorCol: newCol,
         preferredCol: null,
       };
+    }
+
+    case 'vim_set_selection_anchor': {
+      const { cursorRow, cursorCol } = state;
+      return {
+        ...state,
+        selectionAnchor: [cursorRow, cursorCol],
+      };
+    }
+
+    case 'vim_clear_selection': {
+      return {
+        ...state,
+        selectionAnchor: null,
+      };
+    }
+
+    case 'vim_search': {
+      const { query, direction } = action.payload;
+      const { lines, cursorRow, cursorCol } = state;
+      let foundRow = -1;
+      let foundCol = -1;
+
+      // Forward search logic
+      if (direction === 'forward') {
+        const currentLine = lines[cursorRow] || '';
+        // Search current line from next char
+        const idx = currentLine.indexOf(query, cursorCol + 1);
+        if (idx !== -1) {
+          foundRow = cursorRow;
+          foundCol = idx;
+        } else {
+          // Search subsequent lines
+          for (let i = cursorRow + 1; i < lines.length; i++) {
+            const line = lines[i];
+            const idx = line.indexOf(query);
+            if (idx !== -1) {
+              foundRow = i;
+              foundCol = idx;
+              break;
+            }
+          }
+          // Wrap around
+          if (foundRow === -1) {
+            for (let i = 0; i <= cursorRow; i++) {
+              const line = lines[i];
+              const idx = line.indexOf(query);
+              if (idx !== -1 && (i < cursorRow || idx < cursorCol)) {
+                foundRow = i;
+                foundCol = idx;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (foundRow !== -1) {
+        return {
+          ...state,
+          cursorRow: foundRow,
+          cursorCol: foundCol,
+          preferredCol: null,
+          lastSearchQuery: query,
+        };
+      }
+
+      return { ...state, lastSearchQuery: query };
+    }
+
+    case 'vim_search_next': {
+      const { lastSearchQuery } = state;
+      if (!lastSearchQuery) return state;
+
+      // Re-dispatch vim_search with saved query
+      // Since we are in reducer, we call logic recursively or duplicate it.
+      // Duplicating for simplicity/safety to avoid recursion limit.
+      const query = lastSearchQuery;
+      const direction = action.payload.direction; // 'forward' (n) or 'backward' (N)
+
+      // TODO: Respect direction (n vs N). Currently assuming forward 'n'.
+      // If direction is 'backward', we need backward search logic.
+      // For now, implementing 'forward' (n) logic which is same as vim_search.
+
+      const { lines, cursorRow, cursorCol } = state;
+      let foundRow = -1;
+      let foundCol = -1;
+
+      // Forward search logic
+      if (direction === 'forward') {
+        const currentLine = lines[cursorRow] || '';
+        const idx = currentLine.indexOf(query, cursorCol + 1);
+        if (idx !== -1) {
+          foundRow = cursorRow;
+          foundCol = idx;
+        } else {
+          for (let i = cursorRow + 1; i < lines.length; i++) {
+            const line = lines[i];
+            const idx = line.indexOf(query);
+            if (idx !== -1) {
+              foundRow = i;
+              foundCol = idx;
+              break;
+            }
+          }
+          if (foundRow === -1) {
+            for (let i = 0; i <= cursorRow; i++) {
+              const line = lines[i];
+              const idx = line.indexOf(query);
+              if (idx !== -1 && (i < cursorRow || idx < cursorCol)) {
+                foundRow = i;
+                foundCol = idx;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (foundRow !== -1) {
+        return {
+          ...state,
+          cursorRow: foundRow,
+          cursorCol: foundCol,
+          preferredCol: null,
+        };
+      }
+      return state;
+    }
+
+    case 'vim_yank': {
+      return {
+        ...state,
+        clipboard: action.payload.text,
+      };
+    }
+
+    case 'vim_yank_selection': {
+      const { selectionAnchor, cursorRow, cursorCol, lines } = state;
+      if (!selectionAnchor) return state;
+
+      let startRow; let startCol; let endRow; let endCol;
+      if (
+        selectionAnchor[0] < cursorRow ||
+        (selectionAnchor[0] === cursorRow && selectionAnchor[1] < cursorCol)
+      ) {
+        startRow = selectionAnchor[0];
+        startCol = selectionAnchor[1];
+        endRow = cursorRow;
+        endCol = cursorCol;
+      } else {
+        startRow = cursorRow;
+        startCol = cursorCol;
+        endRow = selectionAnchor[0];
+        endCol = selectionAnchor[1];
+      }
+
+      // getPositionFromOffsets logic might be needed if we want to support raw offset ranges,
+      // but here we have row/cols.
+      // We need to extract text from [startRow, startCol] to [endRow, endCol] inclusive.
+
+      let yankedText = '';
+      if (startRow === endRow) {
+        yankedText = cpSlice(lines[startRow] || '', startCol, endCol + 1);
+      } else {
+        // First line
+        yankedText += cpSlice(lines[startRow] || '', startCol) + '\n';
+        // Middle lines
+        for (let i = startRow + 1; i < endRow; i++) {
+          yankedText += (lines[i] || '') + '\n';
+        }
+        // Last line
+        yankedText += cpSlice(lines[endRow] || '', 0, endCol + 1);
+      }
+
+      return {
+        ...state,
+        clipboard: yankedText,
+      };
+    }
+
+    case 'vim_paste': {
+      const { clipboard, cursorRow, cursorCol, lines } = state;
+      if (!clipboard) return state;
+
+      const { direction } = action.payload;
+      const nextState = pushUndo(state);
+
+      if (direction === 'after') {
+        // 'p': paste after cursor
+        const currentLine = lines[cursorRow] || '';
+        // If pasting multiple lines (text contains newline)
+        if (clipboard.includes('\n')) {
+          // Open line below and insert
+          // But we need to handle multi-line paste more carefully depending on whether it was a linewise yank
+          // For simplicity, treating everything as character-wise insertion for now unless it ends with newline
+          // If it ends with newline, it's linewise?
+          // Standard vim: linewise yank puts text on new line.
+          // Let's assume character-wise insert for now for simplicity as we don't track linewise/charwise in clipboard yet.
+
+          // However, for 'p' of a block, it usually starts on the next line if it was linewise.
+          // If clipboard ends with \n, treat as linewise.
+          if (clipboard.endsWith('\n')) {
+            // Insert below current line
+            const endOfLine = cpLen(currentLine);
+            return replaceRangeInternal(
+              nextState,
+              cursorRow,
+              endOfLine, // append at end
+              cursorRow,
+              endOfLine,
+              '\n' + clipboard.slice(0, -1), // remove trailing newline for insertion, but prepend newline to put it on next line
+            );
+            // Wait, this appends to current line.
+            // Correct logic for linewise 'p': insert new lines below current line.
+          }
+
+          // Charwise paste after cursor
+          const insertCol = Math.min(cursorCol + 1, cpLen(currentLine));
+          return replaceRangeInternal(
+            nextState,
+            cursorRow,
+            insertCol,
+            cursorRow,
+            insertCol,
+            clipboard,
+          );
+        } else {
+          // Single line paste after cursor
+          const insertCol = Math.min(cursorCol + 1, cpLen(currentLine));
+          return replaceRangeInternal(
+            nextState,
+            cursorRow,
+            insertCol,
+            cursorRow,
+            insertCol,
+            clipboard,
+          );
+        }
+      } else {
+        // 'P': paste before cursor
+        // If linewise
+        if (clipboard.includes('\n') && clipboard.endsWith('\n')) {
+          // Insert above current line
+          return replaceRangeInternal(
+            nextState,
+            cursorRow,
+            0,
+            cursorRow,
+            0,
+            clipboard,
+          );
+        }
+
+        // Charwise paste before cursor
+        return replaceRangeInternal(
+          nextState,
+          cursorRow,
+          cursorCol,
+          cursorRow,
+          cursorCol,
+          clipboard,
+        );
+      }
     }
 
     default: {

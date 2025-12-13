@@ -109,6 +109,10 @@
         "slug": "docs/cli/trusted-folders"
       },
       {
+        "label": "Vim mode",
+        "slug": "docs/cli/vim-mode"
+      },
+      {
         "label": "Tutorials",
         "slug": "docs/cli/tutorials"
       },

@@ -80,6 +80,7 @@ export interface InputPromptProps {
   onEscapePromptChange?: (showPrompt: boolean) => void;
   onSuggestionsVisibilityChange?: (visible: boolean) => void;
   vimHandleInput?: (key: Key) => boolean;
+  vimMode?: 'NORMAL' | 'INSERT' | 'VISUAL' | 'VISUAL_LINE';
   isEmbeddedShellFocused?: boolean;
   setQueueErrorMessage: (message: string | null) => void;
   streamingState: StreamingState;
@@ -122,6 +123,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   onEscapePromptChange,
   onSuggestionsVisibilityChange,
   vimHandleInput,
+  vimMode,
   isEmbeddedShellFocused,
   setQueueErrorMessage,
   streamingState,
@@ -145,6 +147,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   const [reverseSearchActive, setReverseSearchActive] = useState(false);
   const [commandSearchActive, setCommandSearchActive] = useState(false);
+  const [vimSearchActive, setVimSearchActive] = useState(false);
   const [textBeforeReverseSearch, setTextBeforeReverseSearch] = useState('');
   const [cursorPosition, setCursorPosition] = useState<[number, number]>([
     0, 0,
@@ -191,7 +194,17 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     }
     escPressCount.current = 0;
     setShowEscapePrompt(false);
-  }, []);
+    if (vimSearchActive) {
+      setVimSearchActive(false);
+      buffer.setText(textBeforeReverseSearch);
+      const offset = logicalPosToOffset(
+        buffer.lines,
+        cursorPosition[0],
+        cursorPosition[1],
+      );
+      buffer.moveToOffset(offset);
+    }
+  }, [vimSearchActive, buffer, textBeforeReverseSearch, cursorPosition]);
 
   // Notify parent component about escape prompt state changes
   useEffect(() => {
@@ -438,6 +451,46 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         setShellModeActive(!shellModeActive);
         buffer.setText(''); // Clear the '!' from input
         return;
+      }
+
+      if (
+        (key.sequence === '/' || key.sequence === '?') &&
+        vimMode === 'NORMAL' &&
+        !completion.showSuggestions &&
+        !shellModeActive &&
+        !vimSearchActive
+      ) {
+        setVimSearchActive(true);
+        setTextBeforeReverseSearch(buffer.text);
+        setCursorPosition(buffer.cursor);
+        buffer.setText(key.sequence); // Start with / or ?
+        return;
+      }
+
+      if (vimSearchActive) {
+        // Handle search submission
+        if (keyMatchers[Command.RETURN](key)) {
+          const searchText = buffer.text;
+          const isBackward = searchText.startsWith('?');
+          const query = searchText.slice(1); // Remove prefix
+
+          setVimSearchActive(false);
+          // Restore original text
+          buffer.setText(textBeforeReverseSearch);
+          // Move cursor to original position first
+          const offset = logicalPosToOffset(
+            buffer.lines,
+            cursorPosition[0],
+            cursorPosition[1],
+          );
+          buffer.moveToOffset(offset);
+
+          // Perform search
+          if (buffer.vimSearch) {
+            buffer.vimSearch(query, isBackward ? 'backward' : 'forward');
+          }
+          return;
+        }
       }
 
       if (keyMatchers[Command.ESCAPE](key)) {
@@ -858,6 +911,8 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       kittyProtocol.enabled,
       tryLoadQueuedMessages,
       setBannerVisible,
+      vimMode,
+      vimSearchActive,
     ],
   );
 
@@ -867,6 +922,26 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const [cursorVisualRowAbsolute, cursorVisualColAbsolute] =
     buffer.visualCursor;
   const scrollVisualRow = buffer.visualScrollRow;
+
+  // Calculate selection range if active
+  const selectionStart = buffer.selectionAnchor;
+  const selectionEnd = buffer.cursor;
+  let minSelection: [number, number] | null = null;
+  let maxSelection: [number, number] | null = null;
+
+  if (selectionStart) {
+    if (
+      selectionStart[0] < selectionEnd[0] ||
+      (selectionStart[0] === selectionEnd[0] &&
+        selectionStart[1] < selectionEnd[1])
+    ) {
+      minSelection = selectionStart;
+      maxSelection = selectionEnd;
+    } else {
+      minSelection = selectionEnd;
+      maxSelection = selectionStart;
+    }
+  }
 
   const getGhostTextLines = useCallback(() => {
     if (
@@ -1023,7 +1098,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         scrollOffset={activeCompletion.visibleStartIndex}
         userInput={buffer.text}
         mode={
-          buffer.text.startsWith('/') &&
+          (buffer.text.startsWith('/') || buffer.text.startsWith('?')) &&
           !reverseSearchActive &&
           !commandSearchActive
             ? 'slash'
@@ -1067,6 +1142,8 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             )
           ) : commandSearchActive ? (
             <Text color={theme.text.accent}>(r:) </Text>
+          ) : vimSearchActive ? (
+            <Text color={theme.text.accent}> </Text>
           ) : showYoloStyling ? (
             '*'
           ) : (
@@ -1114,39 +1191,58 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
                 let charCount = 0;
                 segments.forEach((seg, segIdx) => {
                   const segLen = cpLen(seg.text);
-                  let display = seg.text;
+                  let display = '';
 
-                  if (isOnCursorLine) {
-                    const relativeVisualColForHighlight =
-                      cursorVisualColAbsolute;
-                    const segStart = charCount;
-                    const segEnd = segStart + segLen;
-                    if (
-                      relativeVisualColForHighlight >= segStart &&
-                      relativeVisualColForHighlight < segEnd
-                    ) {
-                      const charToHighlight = cpSlice(
-                        seg.text,
-                        relativeVisualColForHighlight - segStart,
-                        relativeVisualColForHighlight - segStart + 1,
-                      );
-                      const highlighted = showCursor
-                        ? chalk.inverse(charToHighlight)
-                        : charToHighlight;
-                      display =
-                        cpSlice(
-                          seg.text,
-                          0,
-                          relativeVisualColForHighlight - segStart,
-                        ) +
-                        highlighted +
-                        cpSlice(
-                          seg.text,
-                          relativeVisualColForHighlight - segStart + 1,
-                        );
+                  // Iterate through each character in the segment to handle highlighting
+                  const segCodePoints = toCodePoints(seg.text);
+                  for (let i = 0; i < segCodePoints.length; i++) {
+                    const char = segCodePoints[i];
+                    const charLogicalCol = logicalStartCol + charCount + i;
+                    let isSelected = false;
+
+                    if (minSelection && maxSelection) {
+                      // Check if current char is within selection range
+                      // Range is inclusive of start, exclusive of end? Standard text selection is usually exclusive of end character index,
+                      // but inclusive of the character at that index if we are selecting text.
+                      // Let's assume inclusive for visual mode for now, or standard [start, end).
+                      // Vim visual mode is inclusive of the character under the cursor.
+                      // So selection is from min to max INCLUSIVE.
+
+                      const isAfterStart =
+                        logicalLineIdx > minSelection[0] ||
+                        (logicalLineIdx === minSelection[0] &&
+                          charLogicalCol >= minSelection[1]);
+                      const isBeforeEnd =
+                        logicalLineIdx < maxSelection[0] ||
+                        (logicalLineIdx === maxSelection[0] &&
+                          charLogicalCol <= maxSelection[1]); // Inclusive end
+
+                      if (isAfterStart && isBeforeEnd) {
+                        isSelected = true;
+                      }
                     }
-                    charCount = segEnd;
+
+                    // Check for cursor highlight
+                    let isCursor = false;
+                    if (isOnCursorLine) {
+                      const relativeVisualColForHighlight =
+                        cursorVisualColAbsolute;
+                      const currentVisualCol = charCount + i;
+                      if (currentVisualCol === relativeVisualColForHighlight) {
+                        isCursor = true;
+                      }
+                    }
+
+                    if (isCursor && showCursor) {
+                      display += chalk.inverse(char);
+                    } else if (isSelected) {
+                      display += chalk.bgBlue(char); // Use bgBlue for selection
+                    } else {
+                      display += char;
+                    }
                   }
+
+                  charCount += segLen;
 
                   const color =
                     seg.type === 'command' || seg.type === 'file'
