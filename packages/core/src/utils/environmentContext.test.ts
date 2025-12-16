@@ -47,31 +47,44 @@ describe('getDirectoryContextString', () => {
     vi.resetAllMocks();
   });
 
-  it('should return context string for a single directory', async () => {
+  it('should return context string for a single directory without folder structure by default', async () => {
     const contextString = await getDirectoryContextString(mockConfig as Config);
+    expect(contextString).toBe(
+      "I'm currently working in the directory: /test/dir",
+    );
+    expect(contextString).not.toContain('Here is the folder structure');
+    expect(getFolderStructure).not.toHaveBeenCalled();
+  });
+
+  it('should return context string for a single directory with folder structure when requested', async () => {
+    const contextString = await getDirectoryContextString(
+      mockConfig as Config,
+      {
+        includeFolderStructure: true,
+      },
+    );
     expect(contextString).toContain(
       "I'm currently working in the directory: /test/dir",
     );
     expect(contextString).toContain(
       'Here is the folder structure of the current working directories:\n\nMock Folder Structure',
     );
+    expect(getFolderStructure).toHaveBeenCalledWith('/test/dir', {
+      fileService: undefined,
+    });
   });
 
-  it('should return context string for multiple directories', async () => {
+  it('should return context string for multiple directories without folder structure by default', async () => {
     (
       vi.mocked(mockConfig.getWorkspaceContext!)().getDirectories as Mock
     ).mockReturnValue(['/test/dir1', '/test/dir2']);
-    vi.mocked(getFolderStructure)
-      .mockResolvedValueOnce('Structure 1')
-      .mockResolvedValueOnce('Structure 2');
 
     const contextString = await getDirectoryContextString(mockConfig as Config);
-    expect(contextString).toContain(
+    expect(contextString).toBe(
       "I'm currently working in the following directories:\n  - /test/dir1\n  - /test/dir2",
     );
-    expect(contextString).toContain(
-      'Here is the folder structure of the current working directories:\n\nStructure 1\nStructure 2',
-    );
+    expect(contextString).not.toContain('Here is the folder structure');
+    expect(getFolderStructure).not.toHaveBeenCalled();
   });
 });
 
@@ -107,7 +120,7 @@ describe('getEnvironmentContext', () => {
     vi.resetAllMocks();
   });
 
-  it('should return basic environment context for a single directory', async () => {
+  it('should return basic environment context for a single directory without folder structure', async () => {
     const parts = await getEnvironmentContext(mockConfig as Config);
 
     expect(parts.length).toBe(1);
@@ -119,21 +132,14 @@ describe('getEnvironmentContext', () => {
     expect(context).toContain(
       "I'm currently working in the directory: /test/dir",
     );
-    expect(context).toContain(
-      'Here is the folder structure of the current working directories:\n\nMock Folder Structure',
-    );
-    expect(getFolderStructure).toHaveBeenCalledWith('/test/dir', {
-      fileService: undefined,
-    });
+    expect(context).not.toContain('Here is the folder structure');
+    expect(getFolderStructure).not.toHaveBeenCalled();
   });
 
-  it('should return basic environment context for multiple directories', async () => {
+  it('should return basic environment context for multiple directories without folder structure', async () => {
     (
       vi.mocked(mockConfig.getWorkspaceContext!)().getDirectories as Mock
     ).mockReturnValue(['/test/dir1', '/test/dir2']);
-    vi.mocked(getFolderStructure)
-      .mockResolvedValueOnce('Structure 1')
-      .mockResolvedValueOnce('Structure 2');
 
     const parts = await getEnvironmentContext(mockConfig as Config);
 
@@ -143,10 +149,8 @@ describe('getEnvironmentContext', () => {
     expect(context).toContain(
       "I'm currently working in the following directories:\n  - /test/dir1\n  - /test/dir2",
     );
-    expect(context).toContain(
-      'Here is the folder structure of the current working directories:\n\nStructure 1\nStructure 2',
-    );
-    expect(getFolderStructure).toHaveBeenCalledTimes(2);
+    expect(context).not.toContain('Here is the folder structure');
+    expect(getFolderStructure).not.toHaveBeenCalled();
   });
 
   it('should handle read_many_files returning no content', async () => {

@@ -15,9 +15,23 @@ import { getFolderStructure } from './getFolderStructure.js';
  */
 export async function getDirectoryContextString(
   config: Config,
+  options: { includeFolderStructure?: boolean } = {},
 ): Promise<string> {
+  const { includeFolderStructure = false } = options;
   const workspaceContext = config.getWorkspaceContext();
   const workspaceDirectories = workspaceContext.getDirectories();
+
+  let workingDirPreamble: string;
+  if (workspaceDirectories.length === 1) {
+    workingDirPreamble = `I'm currently working in the directory: ${workspaceDirectories[0]}`;
+  } else {
+    const dirList = workspaceDirectories.map((dir) => `  - ${dir}`).join('\n');
+    workingDirPreamble = `I'm currently working in the following directories:\n${dirList}`;
+  }
+
+  if (!includeFolderStructure) {
+    return workingDirPreamble;
+  }
 
   const folderStructures = await Promise.all(
     workspaceDirectories.map((dir) =>
@@ -28,14 +42,6 @@ export async function getDirectoryContextString(
   );
 
   const folderStructure = folderStructures.join('\n');
-
-  let workingDirPreamble: string;
-  if (workspaceDirectories.length === 1) {
-    workingDirPreamble = `I'm currently working in the directory: ${workspaceDirectories[0]}`;
-  } else {
-    const dirList = workspaceDirectories.map((dir) => `  - ${dir}`).join('\n');
-    workingDirPreamble = `I'm currently working in the following directories:\n${dirList}`;
-  }
 
   return `${workingDirPreamble}
 Here is the folder structure of the current working directories:
