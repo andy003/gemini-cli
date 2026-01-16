@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import { format } from 'node:util';
 import { type Argv } from 'yargs';
+import type { CliArgs } from '../../config/config.js';
 import { handleUpdate, updateCommand } from './update.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import { loadSettings, type LoadedSettings } from '../../config/settings.js';
@@ -209,7 +210,7 @@ describe('extensions update command', () => {
       });
     });
 
-    it('handler should call handleUpdate', async () => {
+    it('handler should set deferred command', async () => {
       const extensions = [{ name: 'my-extension', installMetadata: {} }];
       mockExtensionManager.prototype.loadExtensions = vi
         .fn()
@@ -223,10 +224,15 @@ describe('extensions update command', () => {
         updatedVersion: '1.1.0',
       });
 
-      await (command.handler as (args: object) => Promise<void>)({
-        name: 'my-extension',
-      });
+      const argv = { name: 'my-extension' } as unknown as CliArgs;
+      await (command.handler as unknown as (args: CliArgs) => Promise<void>)(
+        argv,
+      );
 
+      expect(argv._deferredCommand).toBeDefined();
+      expect(argv._deferredCommand?.type).toBe('extensions');
+
+      await argv._deferredCommand?.run();
       expect(mockUpdateExtension).toHaveBeenCalled();
     });
   });

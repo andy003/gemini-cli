@@ -15,6 +15,7 @@ import v8 from 'node:v8';
 import os from 'node:os';
 import dns from 'node:dns';
 import { start_sandbox } from './utils/sandbox.js';
+import { runDeferredCommand } from './deferred.js';
 import type { DnsResolutionOrder, LoadedSettings } from './config/settings.js';
 import {
   loadTrustedFolders,
@@ -405,6 +406,12 @@ export async function main() {
   // Set remote admin settings if returned from CCPA.
   if (remoteAdminSettings) {
     settings.setRemoteAdminSettings(remoteAdminSettings);
+  }
+
+  // Run any deferred commands that might be blocked by admin settings now that
+  // we have fetched the settings.
+  if (argv._deferredCommand) {
+    await runDeferredCommand(argv, settings.merged);
   }
 
   // hop into sandbox if we are outside and sandboxing is enabled

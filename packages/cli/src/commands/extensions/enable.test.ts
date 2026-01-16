@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import { format } from 'node:util';
 import { type Argv } from 'yargs';
+import type { CliArgs } from '../../config/config.js';
 import { handleEnable, enableCommand } from './enable.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import {
@@ -192,23 +193,22 @@ describe('extensions enable command', () => {
       });
     });
 
-    it('handler should call handleEnable', async () => {
+    it('handler should set deferred command', async () => {
       const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
-      interface TestArgv {
-        name: string;
-        scope: string;
-        [key: string]: unknown;
-      }
-      const argv: TestArgv = {
+      const argv = {
         name: 'test-ext',
         scope: 'workspace',
         _: [],
         $0: '',
-      };
-      await (command.handler as unknown as (args: TestArgv) => Promise<void>)(
+      } as unknown as CliArgs;
+      await (command.handler as unknown as (args: CliArgs) => Promise<void>)(
         argv,
       );
 
+      expect(argv._deferredCommand).toBeDefined();
+      expect(argv._deferredCommand?.type).toBe('extensions');
+
+      await argv._deferredCommand?.run();
       expect(
         mockExtensionManager.prototype.enableExtension,
       ).toHaveBeenCalledWith('test-ext', SettingScope.Workspace);

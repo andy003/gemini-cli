@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import { format } from 'node:util';
 import { type Argv } from 'yargs';
+import type { CliArgs } from '../../config/config.js';
 import { handleUninstall, uninstallCommand } from './uninstall.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import { loadSettings, type LoadedSettings } from '../../config/settings.js';
@@ -278,19 +279,23 @@ describe('extensions uninstall command', () => {
       });
     });
 
-    it('handler should call handleUninstall', async () => {
+    it('handler should set deferred command', async () => {
       mockLoadExtensions.mockResolvedValue(undefined);
       mockUninstallExtension.mockResolvedValue(undefined);
       const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
-      interface TestArgv {
-        names: string[];
-        [key: string]: unknown;
-      }
-      const argv: TestArgv = { names: ['my-extension'], _: [], $0: '' };
-      await (command.handler as unknown as (args: TestArgv) => Promise<void>)(
+      const argv = {
+        names: ['my-extension'],
+        _: [],
+        $0: '',
+      } as unknown as CliArgs;
+      await (command.handler as unknown as (args: CliArgs) => Promise<void>)(
         argv,
       );
 
+      expect(argv._deferredCommand).toBeDefined();
+      expect(argv._deferredCommand?.type).toBe('extensions');
+
+      await argv._deferredCommand?.run();
       expect(mockUninstallExtension).toHaveBeenCalledWith(
         'my-extension',
         false,

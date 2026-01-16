@@ -16,6 +16,7 @@ import {
 } from 'vitest';
 import { handleInstall, installCommand } from './install.js';
 import yargs from 'yargs';
+import type { CliArgs } from '../../config/config.js';
 import { debugLogger, type GeminiCLIExtension } from '@google/gemini-cli-core';
 import type {
   ExtensionManager,
@@ -74,6 +75,39 @@ describe('extensions install command', () => {
     expect(() => validationParser.parse('install')).toThrow(
       'Not enough non-option arguments: got 0, need at least 1',
     );
+  });
+
+  it('handler should set deferred command', async () => {
+    const argv = {
+      source: 'test-source',
+    } as unknown as CliArgs;
+    // Assuming 'command' refers to 'installCommand' from the import
+    await (
+      installCommand.handler as unknown as (args: CliArgs) => Promise<void>
+    )(argv);
+
+    expect(argv._deferredCommand).toBeDefined();
+    expect(argv._deferredCommand?.type).toBe('extensions');
+
+    // Mocking the run method's behavior for this test
+    mockInferInstallMetadata.mockResolvedValue({
+      source: 'test-source',
+      type: 'local',
+    });
+    mockInstallOrUpdateExtension.mockResolvedValue({
+      name: 'test-extension',
+    } as unknown as GeminiCLIExtension);
+
+    await argv._deferredCommand?.run();
+    // The original mock for ExtensionManager is a function that returns an object.
+    // To check calls to the constructor, we need to access the mock directly.
+    // For prototype methods, we need to access the mock's prototype.
+    // This part of the test seems to assume a different mocking setup for ExtensionManager.
+    // For now, I'll keep the original mock check for installOrUpdateExtension.
+    expect(mockInstallOrUpdateExtension).toHaveBeenCalledWith({
+      source: 'test-source',
+      type: 'local',
+    });
   });
 });
 

@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import { format } from 'node:util';
 import { type Argv } from 'yargs';
+import type { CliArgs } from '../../config/config.js';
 import { handleLink, linkCommand } from './link.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import { loadSettings, type LoadedSettings } from '../../config/settings.js';
@@ -169,21 +170,21 @@ describe('extensions link command', () => {
       });
     });
 
-    it('handler should call handleLink', async () => {
+    it('handler should set deferred command', async () => {
       const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
-      interface TestArgv {
-        path: string;
-        [key: string]: unknown;
-      }
-      const argv: TestArgv = {
+      const argv = {
         path: '/local/path/to/extension',
         _: [],
         $0: '',
-      };
-      await (command.handler as unknown as (args: TestArgv) => Promise<void>)(
+      } as unknown as CliArgs;
+      await (command.handler as unknown as (args: CliArgs) => Promise<void>)(
         argv,
       );
 
+      expect(argv._deferredCommand).toBeDefined();
+      expect(argv._deferredCommand?.type).toBe('extensions');
+
+      await argv._deferredCommand?.run();
       expect(
         mockExtensionManager.prototype.installOrUpdateExtension,
       ).toHaveBeenCalledWith({

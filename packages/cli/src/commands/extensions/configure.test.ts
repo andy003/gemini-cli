@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import { configureCommand } from './configure.js';
 import yargs from 'yargs';
+import type { CliArgs } from '../../config/config.js';
 import { debugLogger } from '@google/gemini-cli-core';
 import {
   updateSetting,
@@ -102,7 +103,11 @@ describe('extensions configure command', () => {
 
   const runCommand = async (command: string) => {
     const parser = yargs().command(configureCommand).help(false).version(false);
-    await parser.parse(command);
+    const argv = (await parser.parse(command)) as unknown as CliArgs;
+    if (argv._deferredCommand) {
+      expect(argv._deferredCommand?.type).toBe('extensions');
+      await argv._deferredCommand?.run();
+    }
   };
 
   const setupExtension = (

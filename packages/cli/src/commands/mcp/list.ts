@@ -7,6 +7,7 @@
 // File for 'gemini mcp list' command
 import type { CommandModule } from 'yargs';
 import { loadSettings } from '../../config/settings.js';
+import type { CliArgs } from '../../config/config.js';
 import type { MCPServerConfig } from '@google/gemini-cli-core';
 import {
   MCPServerStatus,
@@ -153,11 +154,16 @@ export async function listMcpServers(): Promise<void> {
   }
 }
 
-export const listCommand: CommandModule = {
+export const listCommand: CommandModule<object, CliArgs> = {
   command: 'list',
   describe: 'List all configured MCP servers',
-  handler: async () => {
-    await listMcpServers();
-    await exitCli();
+  handler: async (argv) => {
+    argv._deferredCommand = {
+      run: async () => {
+        await listMcpServers();
+        await exitCli();
+      },
+      type: 'mcp',
+    };
   },
 };

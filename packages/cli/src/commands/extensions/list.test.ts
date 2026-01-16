@@ -5,6 +5,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type { CliArgs } from '../../config/config.js';
 import { format } from 'node:util';
 import { handleList, listCommand } from './list.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
@@ -130,12 +131,32 @@ describe('extensions list command', () => {
       expect(command.describe).toBe('Lists installed extensions.');
     });
 
-    it('handler should call handleList', async () => {
+    it('handler should set deferred command', async () => {
+      const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
+      const argv = {} as CliArgs;
+      await (command.handler as unknown as (args: CliArgs) => Promise<void>)(
+        argv,
+      );
+
+      expect(argv._deferredCommand).toBeDefined();
+      expect(argv._deferredCommand?.type).toBe('extensions');
+
       mockExtensionManager.prototype.loadExtensions = vi
         .fn()
         .mockResolvedValue([]);
-      await (command.handler as () => Promise<void>)();
+
+      await argv._deferredCommand?.run();
+      expect(mockExtensionManager).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceDir: '/test/dir',
+        }),
+      );
       expect(mockExtensionManager.prototype.loadExtensions).toHaveBeenCalled();
+      expect(emitConsoleLog).toHaveBeenCalledWith(
+        'log',
+        'No extensions installed.',
+      );
+      mockCwd.mockRestore();
     });
   });
 });
