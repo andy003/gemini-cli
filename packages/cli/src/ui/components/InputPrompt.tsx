@@ -718,13 +718,16 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           return;
         }
 
+        const isLargeInput =
+          buffer.allVisualLines.length > buffer.viewportVisualLines.length;
+
         if (isHistoryUp) {
           const isShortcut = keyMatchers[Command.HISTORY_UP](key);
           if (tryLoadQueuedMessages()) {
             return;
           }
 
-          if (!isShortcut && !wasJustNavigated) {
+          if (!isShortcut && !wasJustNavigated && isLargeInput) {
             appEvents.emit(AppEvent.HistoryUpBoundary);
             setJustNavigatedHistory(true);
             return;
@@ -735,7 +738,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         }
         if (isHistoryDown) {
           const isShortcut = keyMatchers[Command.HISTORY_DOWN](key);
-          if (!isShortcut && !wasJustNavigated) {
+          if (!isShortcut && !wasJustNavigated && isLargeInput) {
             appEvents.emit(AppEvent.HistoryDownBoundary);
             setJustNavigatedHistory(true);
             return;

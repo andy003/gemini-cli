@@ -3056,16 +3056,18 @@ describe('InputPrompt', () => {
   });
 
   describe('History navigation trap', () => {
-    let emitSpy: MockInstance<typeof appEvents.emit>;
-
+    let emitSpy: MockInstance;
     beforeEach(() => {
       emitSpy = vi.spyOn(appEvents, 'emit');
       // Ensure the hook returns spy-able methods
       mockedUseInputHistory.mockReturnValue(mockInputHistory);
     });
 
-    it('traps Up arrow at top boundary and emits event', async () => {
+    it('traps Up arrow at top boundary and emits event when input is large', async () => {
       mockInputHistory.navigateUp = vi.fn().mockReturnValue(false);
+      // Make it a large input
+      mockBuffer.allVisualLines = Array(15).fill('line');
+      mockBuffer.viewportVisualLines = Array(10).fill('line');
 
       const { stdin } = renderWithProviders(<InputPrompt {...props} />, {
         uiActions,
@@ -3081,8 +3083,11 @@ describe('InputPrompt', () => {
       expect(mockInputHistory.navigateUp).not.toHaveBeenCalled();
     });
 
-    it('bypasses trap on second Up arrow press', async () => {
+    it('bypasses trap on second Up arrow press when input is large', async () => {
       mockInputHistory.navigateUp = vi.fn().mockReturnValue(true);
+      // Make it a large input
+      mockBuffer.allVisualLines = Array(15).fill('line');
+      mockBuffer.viewportVisualLines = Array(10).fill('line');
 
       const { stdin } = renderWithProviders(<InputPrompt {...props} />, {
         uiActions,
@@ -3108,8 +3113,11 @@ describe('InputPrompt', () => {
       });
     });
 
-    it('bypasses trap on Ctrl+P immediately', async () => {
+    it('bypasses trap on Ctrl+P immediately even when input is large', async () => {
       mockInputHistory.navigateUp = vi.fn().mockReturnValue(true);
+      // Make it a large input
+      mockBuffer.allVisualLines = Array(15).fill('line');
+      mockBuffer.viewportVisualLines = Array(10).fill('line');
 
       const { stdin } = renderWithProviders(<InputPrompt {...props} />, {
         uiActions,
@@ -3125,8 +3133,14 @@ describe('InputPrompt', () => {
       expect(emitSpy).not.toHaveBeenCalledWith(AppEvent.HistoryUpBoundary);
     });
 
-    it('traps Down arrow at bottom boundary and emits event', async () => {
+    it('traps Down arrow at bottom boundary and emits event when input is large', async () => {
       mockInputHistory.navigateDown = vi.fn().mockReturnValue(false);
+      // Make it a large input
+      mockBuffer.allVisualLines = Array(15).fill('line');
+      mockBuffer.viewportVisualLines = Array(10).fill('line');
+      // Position cursor at the very last visual line
+      mockBuffer.visualCursor = [14, 0];
+      mockBuffer.visualScrollRow = 5;
 
       const { stdin } = renderWithProviders(<InputPrompt {...props} />, {
         uiActions,
@@ -3142,8 +3156,11 @@ describe('InputPrompt', () => {
       expect(mockInputHistory.navigateDown).not.toHaveBeenCalled();
     });
 
-    it('resets trap state after typing', async () => {
+    it('resets trap state after typing when input is large', async () => {
       mockInputHistory.navigateUp = vi.fn().mockReturnValue(false);
+      // Make it a large input
+      mockBuffer.allVisualLines = Array(15).fill('line');
+      mockBuffer.viewportVisualLines = Array(10).fill('line');
 
       const { stdin } = renderWithProviders(<InputPrompt {...props} />, {
         uiActions,
@@ -3169,6 +3186,26 @@ describe('InputPrompt', () => {
       await waitFor(() => {
         expect(emitSpy).toHaveBeenCalledTimes(2);
       });
+    });
+
+    it('does NOT trap when input is small', async () => {
+      mockInputHistory.navigateUp = vi.fn().mockReturnValue(true);
+      // Small input: fits in viewport (e.g., 1 line)
+      mockBuffer.allVisualLines = ['line 1'];
+      mockBuffer.viewportVisualLines = ['line 1'];
+
+      const { stdin } = renderWithProviders(<InputPrompt {...props} />, {
+        uiActions,
+      });
+
+      await act(async () => {
+        stdin.write('\u001B[A'); // Up arrow
+      });
+
+      await waitFor(() => {
+        expect(mockInputHistory.navigateUp).toHaveBeenCalled();
+      });
+      expect(emitSpy).not.toHaveBeenCalledWith(AppEvent.HistoryUpBoundary);
     });
   });
 });
