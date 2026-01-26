@@ -131,6 +131,10 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
           const toolFromParent = parentToolRegistry.getTool(toolRef);
           if (toolFromParent) {
             agentToolRegistry.registerTool(toolFromParent);
+          } else {
+            debugLogger.warn(
+              `[LocalAgentExecutor] Tool '${toolRef}' not found in parent registry for agent '${definition.name}'.`,
+            );
           }
         } else if (
           typeof toolRef === 'object' &&

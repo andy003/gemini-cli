@@ -11,8 +11,9 @@ import { MarkdownDisplay } from '../../utils/MarkdownDisplay.js';
 import { AnsiOutputText } from '../AnsiOutput.js';
 import { MaxSizedBox } from '../shared/MaxSizedBox.js';
 import { theme } from '../../semantic-colors.js';
-import type { AnsiOutput } from '@google/gemini-cli-core';
+import type { AnsiOutput, SubagentProgress } from '@google/gemini-cli-core';
 import { useUIState } from '../../contexts/UIStateContext.js';
+import { SubagentProgressDisplay } from './SubagentProgressDisplay.js';
 
 const STATIC_HEIGHT = 1;
 const RESERVED_LINE_COUNT = 5; // for tool name, status, padding etc.
@@ -32,6 +33,14 @@ export interface ToolResultDisplayProps {
 interface FileDiffResult {
   fileDiff: string;
   fileName: string;
+}
+
+function isSubagentProgress(obj: unknown): obj is SubagentProgress {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    (obj as SubagentProgress).isSubagentProgress === true
+  );
 }
 
 export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
@@ -65,7 +74,12 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
 
   let content: React.ReactNode;
 
-  if (typeof truncatedResultDisplay === 'string' && renderOutputAsMarkdown) {
+  if (isSubagentProgress(truncatedResultDisplay)) {
+    content = <SubagentProgressDisplay progress={truncatedResultDisplay} />;
+  } else if (
+    typeof truncatedResultDisplay === 'string' &&
+    renderOutputAsMarkdown
+  ) {
     content = (
       <MarkdownDisplay
         text={truncatedResultDisplay}

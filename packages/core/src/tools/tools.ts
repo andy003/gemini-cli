@@ -17,6 +17,7 @@ import {
   type ToolConfirmationRequest,
   type ToolConfirmationResponse,
 } from '../confirmation-bus/types.js';
+import type { SubagentProgress } from '../agents/types.js';
 
 /**
  * Represents a validated and ready-to-execute tool call.
@@ -641,7 +642,12 @@ export interface TodoList {
   todos: Todo[];
 }
 
-export type ToolResultDisplay = string | FileDiff | AnsiOutput | TodoList;
+export type ToolResultDisplay =
+  | string
+  | FileDiff
+  | AnsiOutput
+  | TodoList
+  | SubagentProgress;
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
