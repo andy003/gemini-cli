@@ -9,6 +9,8 @@ import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import { GEMINI_DIR, homedir } from '../utils/paths.js';
+import { ProjectRegistry } from './projectRegistry.js';
+import { debugLogger } from 'src/utils/debugLogger.js';
 
 export const GOOGLE_ACCOUNTS_FILENAME = 'google_accounts.json';
 export const OAUTH_FILE = 'oauth_creds.json';
@@ -17,6 +19,7 @@ const BIN_DIR_NAME = 'bin';
 
 export class Storage {
   private readonly targetDir: string;
+  private projectIdentifier: string | undefined;
 
   constructor(targetDir: string) {
     this.targetDir = targetDir;
@@ -108,9 +111,9 @@ export class Storage {
   }
 
   getProjectTempDir(): string {
-    const hash = this.getFilePathHash(this.getProjectRoot());
+    const identifier = this.getProjectIdentifier();
     const tempDir = Storage.getGlobalTempDir();
-    return path.join(tempDir, hash);
+    return path.join(tempDir, identifier);
   }
 
   ensureProjectTempDirExists(): void {
@@ -129,10 +132,60 @@ export class Storage {
     return crypto.createHash('sha256').update(filePath).digest('hex');
   }
 
-  getHistoryDir(): string {
-    const hash = this.getFilePathHash(this.getProjectRoot());
+  private getProjectIdentifier(): string {
+    if (this.projectIdentifier) {
+      return this.projectIdentifier;
+    }
+
+    const registryPath = path.join(
+      Storage.getGlobalGeminiDir(),
+      'projects.json',
+    );
+    const registry = new ProjectRegistry(registryPath);
+    const shortId = registry.getShortId(this.getProjectRoot());
+
+    // Migration logic to move old hash-based directories to new slug-based directories
+    const oldHash = this.getFilePathHash(this.getProjectRoot());
+
+    // Migrate Temp Dir
+    const newTempDir = path.join(Storage.getGlobalTempDir(), shortId);
+    if (!fs.existsSync(newTempDir)) {
+      const oldTempDir = path.join(Storage.getGlobalTempDir(), oldHash);
+      if (fs.existsSync(oldTempDir)) {
+        try {
+          fs.renameSync(oldTempDir, newTempDir);
+        } catch (e) {
+          debugLogger.debug('Failed to migrate temp directories: ', e);
+        }
+      }
+    }
+
+    // Migrate History Dir
     const historyDir = path.join(Storage.getGlobalGeminiDir(), 'history');
-    return path.join(historyDir, hash);
+    const newHistoryDir = path.join(historyDir, shortId);
+    if (!fs.existsSync(newHistoryDir)) {
+      const oldHistoryDir = path.join(historyDir, oldHash);
+      if (fs.existsSync(oldHistoryDir)) {
+        try {
+          // Ensure parent directory exists for history
+          if (!fs.existsSync(historyDir)) {
+            fs.mkdirSync(historyDir, { recursive: true });
+          }
+          fs.renameSync(oldHistoryDir, newHistoryDir);
+        } catch (e) {
+          debugLogger.debug('Failed to migrate temp directories: ', e);
+        }
+      }
+    }
+
+    this.projectIdentifier = shortId;
+    return shortId;
+  }
+
+  getHistoryDir(): string {
+    const identifier = this.getProjectIdentifier();
+    const historyDir = path.join(Storage.getGlobalGeminiDir(), 'history');
+    return path.join(historyDir, identifier);
   }
 
   getWorkspaceSettingsPath(): string {
