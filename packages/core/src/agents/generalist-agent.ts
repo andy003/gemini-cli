@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import type { Config } from '../config/config.js';
-import { getCoreSystemPrompt, getPromptEnv } from '../core/prompts.js';
+import { getCoreSystemPrompt } from '../core/prompts.js';
 import type { LocalAgentDefinition } from './types.js';
 
 const GeneralistAgentSchema = z.object({
@@ -56,7 +56,6 @@ export const GeneralistAgent = (
     return {
       systemPrompt: getCoreSystemPrompt(
         config,
-        getPromptEnv(config),
         /*userMemory=*/ undefined,
         /*interactiveOverride=*/ false,
       ),

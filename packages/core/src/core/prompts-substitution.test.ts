@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getCoreSystemPrompt, type PromptEnv } from './prompts.js';
+import { getCoreSystemPrompt } from './prompts.js';
 import fs from 'node:fs';
 import type { Config } from '../config/config.js';
 import * as toolNames from '../tools/tool-names.js';
@@ -17,15 +17,9 @@ vi.mock('../utils/gitUtils', () => ({
 
 describe('Core System Prompt Substitution', () => {
   let mockConfig: Config;
-  let mockEnv: PromptEnv;
   beforeEach(() => {
     vi.resetAllMocks();
     vi.stubEnv('GEMINI_SYSTEM_MD', 'true');
-    mockEnv = {
-      today: 'Monday, January 1, 2024',
-      platform: 'linux',
-      tempDir: '/tmp/project-temp',
-    };
     mockConfig = {
       getToolRegistry: vi.fn().mockReturnValue({
         getAllToolNames: vi
@@ -69,7 +63,7 @@ describe('Core System Prompt Substitution', () => {
       'Skills go here: ${AgentSkills}',
     );
 
-    const prompt = getCoreSystemPrompt(mockConfig, mockEnv);
+    const prompt = getCoreSystemPrompt(mockConfig);
 
     expect(prompt).toContain('Skills go here:');
     expect(prompt).toContain('<available_skills>');
@@ -84,7 +78,7 @@ describe('Core System Prompt Substitution', () => {
       mockConfig.getAgentRegistry().getDirectoryContext,
     ).mockReturnValue('Actual Agent Directory');
 
-    const prompt = getCoreSystemPrompt(mockConfig, mockEnv);
+    const prompt = getCoreSystemPrompt(mockConfig);
 
     expect(prompt).toContain('Agents: Actual Agent Directory');
     expect(prompt).not.toContain('${SubAgents}');
@@ -94,7 +88,7 @@ describe('Core System Prompt Substitution', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue('Tools:\n${AvailableTools}');
 
-    const prompt = getCoreSystemPrompt(mockConfig, mockEnv);
+    const prompt = getCoreSystemPrompt(mockConfig);
 
     expect(prompt).toContain(
       `Tools:\n- ${toolNames.WRITE_FILE_TOOL_NAME}\n- ${toolNames.READ_FILE_TOOL_NAME}`,
@@ -108,7 +102,7 @@ describe('Core System Prompt Substitution', () => {
       'Use ${write_file_ToolName} and ${read_file_ToolName}.',
     );
 
-    const prompt = getCoreSystemPrompt(mockConfig, mockEnv);
+    const prompt = getCoreSystemPrompt(mockConfig);
 
     expect(prompt).toContain(
       `Use ${toolNames.WRITE_FILE_TOOL_NAME} and ${toolNames.READ_FILE_TOOL_NAME}.`,
@@ -123,7 +117,7 @@ describe('Core System Prompt Substitution', () => {
       '${WriteFileToolName} and ${WRITE_FILE_TOOL_NAME}',
     );
 
-    const prompt = getCoreSystemPrompt(mockConfig, mockEnv);
+    const prompt = getCoreSystemPrompt(mockConfig);
 
     expect(prompt).toBe('${WriteFileToolName} and ${WRITE_FILE_TOOL_NAME}');
   });
@@ -133,7 +127,7 @@ describe('Core System Prompt Substitution', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue('Use ${write_file_ToolName}.');
 
-    const prompt = getCoreSystemPrompt(mockConfig, mockEnv);
+    const prompt = getCoreSystemPrompt(mockConfig);
 
     expect(prompt).toBe('Use ${write_file_ToolName}.');
   });
