@@ -20,6 +20,10 @@ import { MAX_GEMINI_MESSAGE_LINES } from '../constants.js';
 import { useConfirmingTool } from '../hooks/useConfirmingTool.js';
 import { ToolConfirmationQueue } from './ToolConfirmationQueue.js';
 import { useConfig } from '../contexts/ConfigContext.js';
+import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
+import { AskUserDialog } from './AskUserDialog.js';
+import { PlanApprovalDialog } from './PlanApprovalDialog.js';
+import { useUIActions } from '../contexts/UIActionsContext.js';
 
 const MemoizedHistoryItemDisplay = memo(HistoryItemDisplay);
 const MemoizedAppHeader = memo(AppHeader);
@@ -31,20 +35,34 @@ const MemoizedAppHeader = memo(AppHeader);
 export const MainContent = () => {
   const { version } = useAppContext();
   const uiState = useUIState();
+  const uiActions = useUIActions();
   const config = useConfig();
   const isAlternateBuffer = useAlternateBuffer();
+  const {
+    request: askUserRequest,
+    submit: askUserSubmit,
+    cancel: askUserCancel,
+  } = useAskUserActions();
 
   const confirmingTool = useConfirmingTool();
-  const showConfirmationQueue =
-    config.isEventDrivenSchedulerEnabled() && confirmingTool !== null;
+  const isEventDriven = config.isEventDrivenSchedulerEnabled();
+  const showConfirmationQueue = isEventDriven && confirmingTool !== null;
+  const showAskUserQueue = isEventDriven && askUserRequest !== null;
+  const showPlanQueue = isEventDriven && !!uiState.planApprovalRequest;
 
   const scrollableListRef = useRef<VirtualizedListRef<unknown>>(null);
 
   useEffect(() => {
-    if (showConfirmationQueue) {
+    if (showConfirmationQueue || showAskUserQueue || showPlanQueue) {
       scrollableListRef.current?.scrollToEnd();
     }
-  }, [showConfirmationQueue, confirmingTool]);
+  }, [
+    showConfirmationQueue,
+    showAskUserQueue,
+    showPlanQueue,
+    confirmingTool,
+    askUserRequest,
+  ]);
 
   const {
     pendingHistoryItems,
@@ -96,6 +114,31 @@ export const MainContent = () => {
         {showConfirmationQueue && confirmingTool && (
           <ToolConfirmationQueue confirmingTool={confirmingTool} />
         )}
+        {showAskUserQueue && askUserRequest && (
+          <AskUserDialog
+            questions={askUserRequest.questions}
+            onSubmit={askUserSubmit}
+            onCancel={askUserCancel}
+            inline={true}
+            width={mainAreaWidth}
+            shouldConstrainHeight={
+              uiState.constrainHeight && !isAlternateBuffer
+            }
+          />
+        )}
+        {showPlanQueue && uiState.planApprovalRequest && (
+          <PlanApprovalDialog
+            planContent={uiState.planContent}
+            onApprove={(mode) => uiActions.handlePlanApprove(mode)}
+            onFeedback={uiActions.handlePlanFeedback}
+            onCancel={uiActions.handlePlanCancel}
+            inline={true}
+            width={mainAreaWidth}
+            shouldConstrainHeight={
+              uiState.constrainHeight && !isAlternateBuffer
+            }
+          />
+        )}
       </Box>
     ),
     [
@@ -109,6 +152,14 @@ export const MainContent = () => {
       uiState.embeddedShellFocused,
       showConfirmationQueue,
       confirmingTool,
+      showAskUserQueue,
+      askUserRequest,
+      askUserSubmit,
+      askUserCancel,
+      showPlanQueue,
+      uiState.planApprovalRequest,
+      uiState.planContent,
+      uiActions,
     ],
   );
 

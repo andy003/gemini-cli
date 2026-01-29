@@ -37,6 +37,7 @@ import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
 import { NewAgentsNotification } from './NewAgentsNotification.js';
 import { AgentConfigDialog } from './AgentConfigDialog.js';
 import { PlanApprovalDialog } from './PlanApprovalDialog.js';
+import { useAlternateBuffer } from '../hooks/useAlternateBuffer.js';
 
 interface DialogManagerProps {
   addItem: UseHistoryManagerReturn['addItem'];
@@ -50,6 +51,7 @@ export const DialogManager = ({
 }: DialogManagerProps) => {
   const config = useConfig();
   const settings = useSettings();
+  const isAlternateBuffer = useAlternateBuffer();
 
   const uiState = useUIState();
   const uiActions = useUIActions();
@@ -66,23 +68,25 @@ export const DialogManager = ({
     cancel: askUserCancel,
   } = useAskUserActions();
 
-  if (askUserRequest) {
+  if (askUserRequest && !config.isEventDrivenSchedulerEnabled()) {
     return (
       <AskUserDialog
         questions={askUserRequest.questions}
         onSubmit={askUserSubmit}
         onCancel={askUserCancel}
+        shouldConstrainHeight={constrainHeight && !isAlternateBuffer}
       />
     );
   }
 
-  if (uiState.planApprovalRequest) {
+  if (uiState.planApprovalRequest && !config.isEventDrivenSchedulerEnabled()) {
     return (
       <PlanApprovalDialog
         planContent={uiState.planContent}
         onApprove={(mode) => uiActions.handlePlanApprove(mode)}
         onFeedback={uiActions.handlePlanFeedback}
         onCancel={uiActions.handlePlanCancel}
+        shouldConstrainHeight={constrainHeight && !isAlternateBuffer}
       />
     );
   }

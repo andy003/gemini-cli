@@ -30,6 +30,9 @@ import { getCachedStringWidth } from '../utils/textUtils.js';
 import { useTabbedNavigation } from '../hooks/useTabbedNavigation.js';
 import { DialogFooter } from './shared/DialogFooter.js';
 import { MaxSizedBox } from './shared/MaxSizedBox.js';
+import { OverflowProvider } from '../contexts/OverflowContext.js';
+import { ShowMoreLines } from './ShowMoreLines.js';
+import { StickyHeader } from './StickyHeader.js';
 
 // Width reduction for content inside the dialog border/padding
 const CONTENT_WIDTH_REDUCTION = 4;
@@ -41,6 +44,9 @@ const CONTENT_WIDTH_REDUCTION = 4;
 // - Options/input minimum: 4
 // - Buffer for tab header when present: 2
 const DIALOG_CHROME_HEIGHT = 12;
+
+// Height consumed by inline chrome (StickyHeader + borders + footer)
+const INLINE_CHROME_HEIGHT = 10;
 
 interface AskUserDialogState {
   answers: { [key: string]: string };
@@ -134,6 +140,27 @@ interface AskUserDialogProps {
    * Useful for managing global keypress handlers.
    */
   onActiveTextInputChange?: (active: boolean) => void;
+  /**
+   * Optional maximum height for the content area.
+   */
+  maxHeight?: number;
+  /**
+   * Whether to render the dialog inline (part of history) vs as a top-level dialog.
+   */
+  inline?: boolean;
+  /**
+   * Optional width for the dialog. If not provided, defaults based on 'inline' mode.
+   */
+  width?: number;
+  /**
+   * Whether to constrain the height of the dialog. Defaults to true.
+   */
+  shouldConstrainHeight?: boolean;
+  /**
+   * Optional title for the dialog (displayed in the header in inline mode).
+   * Defaults to "Action Required".
+   */
+  title?: string;
 }
 
 interface ReviewViewProps {
@@ -141,6 +168,8 @@ interface ReviewViewProps {
   answers: { [key: string]: string };
   onSubmit: () => void;
   progressHeader?: React.ReactNode;
+  maxHeight?: number;
+  borderless?: boolean;
 }
 
 const ReviewView: React.FC<ReviewViewProps> = ({
@@ -148,6 +177,8 @@ const ReviewView: React.FC<ReviewViewProps> = ({
   answers,
   onSubmit,
   progressHeader,
+  maxHeight,
+  borderless = false,
 }) => {
   const unansweredCount = questions.length - Object.keys(answers).length;
   const hasUnanswered = unansweredCount > 0;
@@ -164,6 +195,48 @@ const ReviewView: React.FC<ReviewViewProps> = ({
     { isActive: true },
   );
 
+  const content = (
+    <>
+      {progressHeader}
+      <MaxSizedBox maxHeight={maxHeight}>
+        <Box marginBottom={1}>
+          <Text bold color={theme.text.primary}>
+            Review your answers:
+          </Text>
+        </Box>
+
+        {hasUnanswered && (
+          <Box marginBottom={1}>
+            <Text color={theme.status.warning}>
+              ⚠ You have {unansweredCount} unanswered question
+              {unansweredCount > 1 ? 's' : ''}
+            </Text>
+          </Box>
+        )}
+
+        {questions.map((q, i) => (
+          <Box key={i} marginBottom={0}>
+            <Text color={theme.text.secondary}>{q.header}</Text>
+            <Text color={theme.text.secondary}> → </Text>
+            <Text
+              color={answers[i] ? theme.text.primary : theme.status.warning}
+            >
+              {answers[i] || '(not answered)'}
+            </Text>
+          </Box>
+        ))}
+      </MaxSizedBox>
+      <DialogFooter
+        primaryAction="Enter to submit"
+        navigationActions="Tab/Shift+Tab to edit answers"
+      />
+    </>
+  );
+
+  if (borderless) {
+    return <Box flexDirection="column">{content}</Box>;
+  }
+
   return (
     <Box
       flexDirection="column"
@@ -171,35 +244,7 @@ const ReviewView: React.FC<ReviewViewProps> = ({
       paddingX={1}
       borderColor={theme.border.default}
     >
-      {progressHeader}
-      <Box marginBottom={1}>
-        <Text bold color={theme.text.primary}>
-          Review your answers:
-        </Text>
-      </Box>
-
-      {hasUnanswered && (
-        <Box marginBottom={1}>
-          <Text color={theme.status.warning}>
-            ⚠ You have {unansweredCount} unanswered question
-            {unansweredCount > 1 ? 's' : ''}
-          </Text>
-        </Box>
-      )}
-
-      {questions.map((q, i) => (
-        <Box key={i} marginBottom={0}>
-          <Text color={theme.text.secondary}>{q.header}</Text>
-          <Text color={theme.text.secondary}> → </Text>
-          <Text color={answers[i] ? theme.text.primary : theme.status.warning}>
-            {answers[i] || '(not answered)'}
-          </Text>
-        </Box>
-      ))}
-      <DialogFooter
-        primaryAction="Enter to submit"
-        navigationActions="Tab/Shift+Tab to edit answers"
-      />
+      {content}
     </Box>
   );
 };
@@ -215,6 +260,8 @@ interface TextQuestionViewProps {
   initialAnswer?: string;
   progressHeader?: React.ReactNode;
   keyboardHints?: React.ReactNode;
+  maxHeight?: number;
+  borderless?: boolean;
 }
 
 const TextQuestionView: React.FC<TextQuestionViewProps> = ({
@@ -226,8 +273,9 @@ const TextQuestionView: React.FC<TextQuestionViewProps> = ({
   initialAnswer,
   progressHeader,
   keyboardHints,
+  maxHeight,
+  borderless = false,
 }) => {
-  const uiState = useContext(UIStateContext);
   const prefix = '> ';
   const horizontalPadding = 4 + 1; // Padding from Box (2) and border (2) + 1 for cursor
   const bufferWidth =
@@ -284,6 +332,43 @@ const TextQuestionView: React.FC<TextQuestionViewProps> = ({
 
   const placeholder = question.placeholder || 'Enter your response';
 
+  const content = (
+    <>
+      {progressHeader}
+      <MaxSizedBox maxHeight={maxHeight}>
+        {question.content && (
+          <Box marginBottom={1} flexDirection="column">
+            <MarkdownDisplay
+              text={question.content}
+              isPending={false}
+              terminalWidth={availableWidth - CONTENT_WIDTH_REDUCTION}
+            />
+          </Box>
+        )}
+        <Box marginBottom={1}>
+          <Text bold color={theme.text.primary}>
+            {question.question}
+          </Text>
+        </Box>
+
+        <Box flexDirection="row" marginBottom={1}>
+          <Text color={theme.text.accent}>{'> '}</Text>
+          <TextInput
+            buffer={buffer}
+            placeholder={placeholder}
+            onSubmit={handleSubmit}
+          />
+        </Box>
+      </MaxSizedBox>
+
+      {keyboardHints}
+    </>
+  );
+
+  if (borderless) {
+    return <Box flexDirection="column">{content}</Box>;
+  }
+
   return (
     <Box
       flexDirection="column"
@@ -291,39 +376,7 @@ const TextQuestionView: React.FC<TextQuestionViewProps> = ({
       paddingX={1}
       borderColor={theme.border.default}
     >
-      {progressHeader}
-      {question.content && (
-        <Box marginBottom={1} flexDirection="column">
-          <MaxSizedBox
-            maxHeight={
-              uiState?.availableTerminalHeight &&
-              uiState.availableTerminalHeight - DIALOG_CHROME_HEIGHT
-            }
-          >
-            <MarkdownDisplay
-              text={question.content}
-              isPending={false}
-              terminalWidth={availableWidth - CONTENT_WIDTH_REDUCTION}
-            />
-          </MaxSizedBox>
-        </Box>
-      )}
-      <Box marginBottom={1}>
-        <Text bold color={theme.text.primary}>
-          {question.question}
-        </Text>
-      </Box>
-
-      <Box flexDirection="row" marginBottom={1}>
-        <Text color={theme.text.accent}>{'> '}</Text>
-        <TextInput
-          buffer={buffer}
-          placeholder={placeholder}
-          onSubmit={handleSubmit}
-        />
-      </Box>
-
-      {keyboardHints}
+      {content}
     </Box>
   );
 };
@@ -414,6 +467,8 @@ interface ChoiceQuestionViewProps {
   initialAnswer?: string;
   progressHeader?: React.ReactNode;
   keyboardHints?: React.ReactNode;
+  maxHeight?: number;
+  borderless?: boolean;
 }
 
 const ChoiceQuestionView: React.FC<ChoiceQuestionViewProps> = ({
@@ -424,6 +479,8 @@ const ChoiceQuestionView: React.FC<ChoiceQuestionViewProps> = ({
   initialAnswer,
   progressHeader,
   keyboardHints,
+  maxHeight,
+  borderless = false,
 }) => {
   const uiState = useContext(UIStateContext);
   const terminalWidth = uiState?.terminalWidth ?? 80;
@@ -728,6 +785,125 @@ const ChoiceQuestionView: React.FC<ChoiceQuestionViewProps> = ({
     }
   }, [customOptionText, isCustomOptionSelected, question.multiSelect]);
 
+  const content = (
+    <>
+      <MaxSizedBox maxHeight={maxHeight}>
+        {question.content && (
+          <Box marginBottom={1} flexDirection="column">
+            <MarkdownDisplay
+              text={question.content}
+              isPending={false}
+              terminalWidth={availableWidth - CONTENT_WIDTH_REDUCTION}
+            />
+          </Box>
+        )}
+        <Box marginBottom={1}>
+          <Text bold color={theme.text.primary}>
+            {question.question}
+          </Text>
+        </Box>
+        {question.multiSelect && (
+          <Text color={theme.text.secondary} italic>
+            {' '}
+            (Select all that apply)
+          </Text>
+        )}
+
+        <BaseSelectionList<OptionItem>
+          items={selectionItems}
+          onSelect={handleSelect}
+          onHighlight={handleHighlight}
+          focusKey={isCustomOptionFocused ? 'other' : undefined}
+          renderItem={(item, context) => {
+            const optionItem = item.value;
+            const isChecked =
+              selectedIndices.has(optionItem.index) ||
+              (optionItem.type === 'other' && isCustomOptionSelected);
+            const showCheck =
+              question.multiSelect &&
+              (optionItem.type === 'option' || optionItem.type === 'other');
+
+            // Render inline text input for custom option
+            if (optionItem.type === 'other') {
+              const placeholder =
+                question.customOptionPlaceholder || 'Enter a custom value';
+              return (
+                <Box flexDirection="row">
+                  {showCheck && (
+                    <Text
+                      color={
+                        isChecked ? theme.text.accent : theme.text.secondary
+                      }
+                    >
+                      [{isChecked ? 'x' : ' '}]
+                    </Text>
+                  )}
+                  <Text color={theme.text.primary}> </Text>
+                  <TextInput
+                    buffer={customBuffer}
+                    placeholder={placeholder}
+                    focus={context.isSelected}
+                    onSubmit={() => handleSelect(optionItem)}
+                  />
+                  {isChecked && !question.multiSelect && (
+                    <Text color={theme.status.success}> ✓</Text>
+                  )}
+                </Box>
+              );
+            }
+
+            // Determine label color: checked (previously answered) uses success, selected uses accent, else primary
+            const labelColor =
+              isChecked && !question.multiSelect
+                ? theme.status.success
+                : context.isSelected
+                  ? context.titleColor
+                  : theme.text.primary;
+
+            return (
+              <Box flexDirection="column">
+                <Box flexDirection="row">
+                  {showCheck && (
+                    <Text
+                      color={
+                        isChecked ? theme.text.accent : theme.text.secondary
+                      }
+                    >
+                      [{isChecked ? 'x' : ' '}]
+                    </Text>
+                  )}
+                  <Text color={labelColor} bold={optionItem.type === 'done'}>
+                    {' '}
+                    {optionItem.label}
+                  </Text>
+                  {isChecked && !question.multiSelect && (
+                    <Text color={theme.status.success}> ✓</Text>
+                  )}
+                </Box>
+                {optionItem.description && (
+                  <Text color={theme.text.secondary} wrap="wrap">
+                    {' '}
+                    {optionItem.description}
+                  </Text>
+                )}
+              </Box>
+            );
+          }}
+        />
+      </MaxSizedBox>
+      {keyboardHints}
+    </>
+  );
+
+  if (borderless) {
+    return (
+      <Box flexDirection="column">
+        {progressHeader}
+        {content}
+      </Box>
+    );
+  }
+
   return (
     <Box
       flexDirection="column"
@@ -736,112 +912,7 @@ const ChoiceQuestionView: React.FC<ChoiceQuestionViewProps> = ({
       borderColor={theme.border.default}
     >
       {progressHeader}
-      {question.content && (
-        <Box marginBottom={1} flexDirection="column">
-          <MaxSizedBox
-            maxHeight={
-              uiState?.availableTerminalHeight &&
-              uiState.availableTerminalHeight - DIALOG_CHROME_HEIGHT
-            }
-          >
-            <MarkdownDisplay
-              text={question.content}
-              isPending={false}
-              terminalWidth={availableWidth - CONTENT_WIDTH_REDUCTION}
-            />
-          </MaxSizedBox>
-        </Box>
-      )}
-      <Box marginBottom={1}>
-        <Text bold color={theme.text.primary}>
-          {question.question}
-        </Text>
-      </Box>
-      {question.multiSelect && (
-        <Text color={theme.text.secondary} italic>
-          {' '}
-          (Select all that apply)
-        </Text>
-      )}
-
-      <BaseSelectionList<OptionItem>
-        items={selectionItems}
-        onSelect={handleSelect}
-        onHighlight={handleHighlight}
-        focusKey={isCustomOptionFocused ? 'other' : undefined}
-        renderItem={(item, context) => {
-          const optionItem = item.value;
-          const isChecked =
-            selectedIndices.has(optionItem.index) ||
-            (optionItem.type === 'other' && isCustomOptionSelected);
-          const showCheck =
-            question.multiSelect &&
-            (optionItem.type === 'option' || optionItem.type === 'other');
-
-          // Render inline text input for custom option
-          if (optionItem.type === 'other') {
-            const placeholder =
-              question.customOptionPlaceholder || 'Enter a custom value';
-            return (
-              <Box flexDirection="row">
-                {showCheck && (
-                  <Text
-                    color={isChecked ? theme.text.accent : theme.text.secondary}
-                  >
-                    [{isChecked ? 'x' : ' '}]
-                  </Text>
-                )}
-                <Text color={theme.text.primary}> </Text>
-                <TextInput
-                  buffer={customBuffer}
-                  placeholder={placeholder}
-                  focus={context.isSelected}
-                  onSubmit={() => handleSelect(optionItem)}
-                />
-                {isChecked && !question.multiSelect && (
-                  <Text color={theme.status.success}> ✓</Text>
-                )}
-              </Box>
-            );
-          }
-
-          // Determine label color: checked (previously answered) uses success, selected uses accent, else primary
-          const labelColor =
-            isChecked && !question.multiSelect
-              ? theme.status.success
-              : context.isSelected
-                ? context.titleColor
-                : theme.text.primary;
-
-          return (
-            <Box flexDirection="column">
-              <Box flexDirection="row">
-                {showCheck && (
-                  <Text
-                    color={isChecked ? theme.text.accent : theme.text.secondary}
-                  >
-                    [{isChecked ? 'x' : ' '}]
-                  </Text>
-                )}
-                <Text color={labelColor} bold={optionItem.type === 'done'}>
-                  {' '}
-                  {optionItem.label}
-                </Text>
-                {isChecked && !question.multiSelect && (
-                  <Text color={theme.status.success}> ✓</Text>
-                )}
-              </Box>
-              {optionItem.description && (
-                <Text color={theme.text.secondary} wrap="wrap">
-                  {' '}
-                  {optionItem.description}
-                </Text>
-              )}
-            </Box>
-          );
-        }}
-      />
-      {keyboardHints}
+      {content}
     </Box>
   );
 };
@@ -851,13 +922,21 @@ export const AskUserDialog: React.FC<AskUserDialogProps> = ({
   onSubmit,
   onCancel,
   onActiveTextInputChange,
+  maxHeight: providedMaxHeight,
+  inline = false,
+  width: providedWidth,
+  shouldConstrainHeight = true,
+  title: providedTitle = 'Action Required',
 }) => {
   const [state, dispatch] = useReducer(askUserDialogReducerLogic, initialState);
   const { answers, isEditingCustomOption, submitted } = state;
 
   const uiState = useContext(UIStateContext);
   const terminalWidth = uiState?.terminalWidth ?? 80;
-  const availableWidth = terminalWidth;
+  const terminalHeight = uiState?.terminalHeight ?? 24;
+  const mainAreaWidth = uiState?.mainAreaWidth ?? terminalWidth;
+  const availableWidth =
+    providedWidth ?? (inline ? mainAreaWidth : terminalWidth);
 
   const reviewTabIndex = questions.length;
   const tabCount =
@@ -1017,61 +1096,90 @@ export const AskUserDialog: React.FC<AskUserDialogProps> = ({
     return questionTabs;
   }, [questions]);
 
-  const progressHeader =
-    questions.length > 1 ? (
-      <TabHeader
-        tabs={tabs}
-        currentIndex={currentQuestionIndex}
-        completedIndices={answeredIndices}
-      />
-    ) : null;
-
-  if (isOnReviewTab) {
-    return (
-      <Box aria-label="Review your answers">
-        <ReviewView
-          questions={questions}
-          answers={answers}
-          onSubmit={handleReviewSubmit}
-          progressHeader={progressHeader}
+  const progressHeader = useMemo(
+    () =>
+      questions.length > 1 ? (
+        <TabHeader
+          tabs={tabs}
+          currentIndex={currentQuestionIndex}
+          completedIndices={answeredIndices}
         />
-      </Box>
-    );
-  }
-
-  if (!currentQuestion) return null;
-
-  const keyboardHints = (
-    <DialogFooter
-      primaryAction={
-        currentQuestion.type === 'text' || isEditingCustomOption
-          ? 'Enter to submit'
-          : 'Enter to select'
-      }
-      navigationActions={
-        questions.length > 1
-          ? currentQuestion.type === 'text' || isEditingCustomOption
-            ? 'Tab/Shift+Tab to switch questions'
-            : '←/→ to switch questions'
-          : currentQuestion.type === 'text' || isEditingCustomOption
-            ? undefined
-            : '↑/↓ to navigate'
-      }
-    />
+      ) : null,
+    [questions.length, tabs, currentQuestionIndex, answeredIndices],
   );
 
-  const questionView =
-    currentQuestion.type === 'text' ? (
+  // Height calculations for scrolling
+  const chromeHeight = inline ? INLINE_CHROME_HEIGHT : DIALOG_CHROME_HEIGHT;
+
+  let effectiveMaxHeight: number | undefined;
+  if (shouldConstrainHeight) {
+    effectiveMaxHeight =
+      providedMaxHeight ??
+      (uiState?.availableTerminalHeight
+        ? uiState.availableTerminalHeight - chromeHeight
+        : Math.floor(terminalHeight * 0.5));
+  } else {
+    effectiveMaxHeight = providedMaxHeight;
+  }
+
+  const contentWidth = availableWidth - (inline ? 0 : CONTENT_WIDTH_REDUCTION);
+
+  const dialogContent = useMemo(() => {
+    const commonViewProps = {
+      availableWidth: contentWidth,
+      initialAnswer: answers[currentQuestionIndex],
+      progressHeader,
+      maxHeight: effectiveMaxHeight,
+      borderless: inline,
+    };
+
+    if (isOnReviewTab) {
+      return (
+        <Box aria-label="Review your answers">
+          <ReviewView
+            questions={questions}
+            answers={answers}
+            onSubmit={handleReviewSubmit}
+            {...commonViewProps}
+          />
+        </Box>
+      );
+    }
+
+    if (!currentQuestion) return null;
+
+    const keyboardHints = (
+      <DialogFooter
+        primaryAction={
+          currentQuestion.type === 'text' || isEditingCustomOption
+            ? 'Enter to submit'
+            : 'Enter to select'
+        }
+        navigationActions={
+          questions.length > 1
+            ? currentQuestion.type === 'text' || isEditingCustomOption
+              ? 'Tab/Shift+Tab to switch questions'
+              : '←/→ to switch questions'
+            : currentQuestion.type === 'text' || isEditingCustomOption
+              ? undefined
+              : '↑/↓ to navigate'
+        }
+      />
+    );
+
+    const commonQuestionProps = {
+      ...commonViewProps,
+      keyboardHints,
+    };
+
+    return currentQuestion.type === 'text' ? (
       <TextQuestionView
         key={currentQuestionIndex}
         question={currentQuestion}
         onAnswer={handleAnswer}
         onSelectionChange={handleSelectionChange}
         onEditingCustomOption={handleEditingCustomOption}
-        availableWidth={availableWidth}
-        initialAnswer={answers[currentQuestionIndex]}
-        progressHeader={progressHeader}
-        keyboardHints={keyboardHints}
+        {...commonQuestionProps}
       />
     ) : (
       <ChoiceQuestionView
@@ -1080,20 +1188,108 @@ export const AskUserDialog: React.FC<AskUserDialogProps> = ({
         onAnswer={handleAnswer}
         onSelectionChange={handleSelectionChange}
         onEditingCustomOption={handleEditingCustomOption}
-        availableWidth={availableWidth}
-        initialAnswer={answers[currentQuestionIndex]}
-        progressHeader={progressHeader}
-        keyboardHints={keyboardHints}
+        {...commonQuestionProps}
       />
     );
+  }, [
+    isOnReviewTab,
+    currentQuestion,
+    questions,
+    answers,
+    handleReviewSubmit,
+    progressHeader,
+    effectiveMaxHeight,
+    contentWidth,
+    currentQuestionIndex,
+    handleAnswer,
+    handleSelectionChange,
+    handleEditingCustomOption,
+    effectiveQuestion,
+    isEditingCustomOption,
+    inline,
+  ]);
+
+  if (inline) {
+    const borderColor = theme.status.warning;
+    return (
+      <OverflowProvider>
+        <Box flexDirection="column" width={availableWidth} flexShrink={0}>
+          <StickyHeader
+            width={availableWidth}
+            isFirst={true}
+            borderColor={borderColor}
+            borderDimColor={false}
+          >
+            <Box flexDirection="column" width={availableWidth - 4}>
+              <Box justifyContent="space-between">
+                <Text color={theme.status.warning} bold>
+                  {providedTitle}
+                </Text>
+                {questions.length > 1 && (
+                  <Text color={theme.text.secondary}>
+                    Question {currentQuestionIndex + 1} of {questions.length}
+                  </Text>
+                )}
+              </Box>
+            </Box>
+          </StickyHeader>
+
+          {/* Remove the internal borders from the question views when rendering inline */}
+          {/* We'll wrap the content in our own borders to match the ToolConfirmationQueue style */}
+          <Box
+            width={availableWidth}
+            borderStyle="round"
+            borderColor={borderColor}
+            borderTop={false}
+            borderBottom={false}
+            borderLeft={true}
+            borderRight={true}
+            paddingX={1}
+            flexDirection="column"
+          >
+            {/*
+              For inline mode, we need to strip the round borders from the views
+              or modify the views to not include them.
+              Simple approach: Re-render without the outer Box in the views if inline.
+              But the views are already defined above.
+              Let's refine the views to handle a 'borderless' prop.
+            */}
+            {dialogContent}
+          </Box>
+          <Box
+            height={0}
+            width={availableWidth}
+            borderLeft={true}
+            borderRight={true}
+            borderTop={false}
+            borderBottom={true}
+            borderColor={borderColor}
+            borderStyle="round"
+          />
+        </Box>
+        <ShowMoreLines
+          constrainHeight={shouldConstrainHeight}
+          paddingX={2}
+          marginBottom={1}
+        />
+      </OverflowProvider>
+    );
+  }
 
   return (
-    <Box
-      flexDirection="column"
-      width={availableWidth}
-      aria-label={`Question ${currentQuestionIndex + 1} of ${questions.length}: ${currentQuestion.question}`}
-    >
-      {questionView}
-    </Box>
+    <OverflowProvider>
+      <Box
+        flexDirection="column"
+        width={availableWidth}
+        aria-label={`Question ${currentQuestionIndex + 1} of ${questions.length}: ${currentQuestion?.question}`}
+      >
+        {dialogContent}
+      </Box>
+      <ShowMoreLines
+        constrainHeight={shouldConstrainHeight}
+        paddingX={2}
+        marginBottom={1}
+      />
+    </OverflowProvider>
   );
 };

@@ -68,17 +68,14 @@ exports[`AskUserDialog > Question content field > renders content in a text ques
 
 exports[`AskUserDialog > Question content field > truncates long content when availableTerminalHeight is small 1`] = `
 "╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ... first 28 lines hidden ...                                                                                        │
-│ Line 29                                                                                                              │
-│ Line 30                                                                                                              │
-│                                                                                                                      │
-│ Approve this plan?                                                                                                   │
-│                                                                                                                      │
+│ ... first 33 lines hidden ...                                                                                        │
 │ ● 1.  Yes                                                                                                            │
 │   2.  Enter a custom value                                                                                           │
 │                                                                                                                      │
 │ Enter to select · ↑/↓ to navigate · Esc to cancel                                                                    │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  Press ctrl-o to show more lines
+"
 `;
 
 exports[`AskUserDialog > Question content field > uses customOptionPlaceholder for the Other option 1`] = `

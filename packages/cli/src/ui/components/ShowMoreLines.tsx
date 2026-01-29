@@ -6,15 +6,21 @@
 
 import { Box, Text } from 'ink';
 import { useOverflowState } from '../contexts/OverflowContext.js';
+import { theme } from '../semantic-colors.js';
 import { useStreamingContext } from '../contexts/StreamingContext.js';
 import { StreamingState } from '../types.js';
-import { theme } from '../semantic-colors.js';
 
 interface ShowMoreLinesProps {
   constrainHeight: boolean;
+  paddingX?: number;
+  marginBottom?: number;
 }
 
-export const ShowMoreLines = ({ constrainHeight }: ShowMoreLinesProps) => {
+export const ShowMoreLines = ({
+  constrainHeight,
+  paddingX,
+  marginBottom,
+}: ShowMoreLinesProps) => {
   const overflowState = useOverflowState();
   const streamingState = useStreamingContext();
 
@@ -22,16 +28,13 @@ export const ShowMoreLines = ({ constrainHeight }: ShowMoreLinesProps) => {
     overflowState === undefined ||
     overflowState.overflowingIds.size === 0 ||
     !constrainHeight ||
-    !(
-      streamingState === StreamingState.Idle ||
-      streamingState === StreamingState.WaitingForConfirmation
-    )
+    streamingState === StreamingState.Responding
   ) {
     return null;
   }
 
   return (
-    <Box>
+    <Box paddingX={paddingX} marginBottom={marginBottom}>
       <Text color={theme.text.secondary} wrap="truncate">
         Press ctrl-o to show more lines
       </Text>

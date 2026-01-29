@@ -1106,7 +1106,11 @@ Logging in with Google... Restarting Gemini CLI to continue.
     !!slashCommands &&
     (streamingState === StreamingState.Idle ||
       streamingState === StreamingState.Responding) &&
-    !proQuotaRequest;
+    !proQuotaRequest &&
+    !(
+      config.isEventDrivenSchedulerEnabled() &&
+      (!!askUserRequest || !!planApprovalRequest)
+    );
 
   const [controlsHeight, setControlsHeight] = useState(0);
 
@@ -1644,8 +1648,8 @@ Logging in with Google... Restarting Gemini CLI to continue.
   const nightly = props.version.includes('nightly');
 
   const dialogsVisible =
-    !!askUserRequest ||
-    !!planApprovalRequest ||
+    (!!askUserRequest && !config.isEventDrivenSchedulerEnabled()) ||
+    (!!planApprovalRequest && !config.isEventDrivenSchedulerEnabled()) ||
     shouldShowIdePrompt ||
     isFolderTrustDialogOpen ||
     adminSettingsChanged ||

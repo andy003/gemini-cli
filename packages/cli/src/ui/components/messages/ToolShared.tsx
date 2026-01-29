@@ -19,11 +19,27 @@ import {
   type Config,
   SHELL_TOOL_NAME,
   ASK_USER_DISPLAY_NAME,
+  ASK_USER_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_DISPLAY_NAME,
   type ToolResultDisplay,
 } from '@google/gemini-cli-core';
 import { useInactivityTimer } from '../../hooks/useInactivityTimer.js';
 
 export const STATUS_INDICATOR_WIDTH = 3;
+
+/**
+ * Returns true if the tool has its own specialized UI (e.g., a dialog or inline approval queue).
+ * Such tools are typically hidden from the history log while in progress.
+ */
+export function isToolWithCustomUI(toolName: string): boolean {
+  return (
+    toolName === ASK_USER_TOOL_NAME ||
+    toolName === ASK_USER_DISPLAY_NAME ||
+    toolName === EXIT_PLAN_MODE_TOOL_NAME ||
+    toolName === EXIT_PLAN_MODE_DISPLAY_NAME
+  );
+}
 
 /**
  * Returns true if the tool name corresponds to a shell tool.

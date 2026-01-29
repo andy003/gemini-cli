@@ -20,7 +20,10 @@ import {
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { Config } from '../config/config.js';
-import { EXIT_PLAN_MODE_TOOL_NAME } from './tool-names.js';
+import {
+  EXIT_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_DISPLAY_NAME,
+} from './tool-names.js';
 import { isWithinRoot } from '../utils/fileUtils.js';
 
 export interface ExitPlanModeParams {
@@ -37,7 +40,7 @@ export class ExitPlanModeTool extends BaseDeclarativeTool<
   ) {
     super(
       EXIT_PLAN_MODE_TOOL_NAME,
-      'Exit Plan Mode',
+      EXIT_PLAN_MODE_DISPLAY_NAME,
       'Signals that the planning phase is complete and requests user approval to start implementation.',
       Kind.Plan,
       {

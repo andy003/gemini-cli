@@ -64,6 +64,7 @@ import { useStateAndRef } from './useStateAndRef.js';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import { useLogger } from './useLogger.js';
 import { SHELL_COMMAND_NAME } from '../constants.js';
+import { isToolWithCustomUI } from '../components/messages/ToolShared.js';
 import { mapToDisplay as mapTrackedToolCallsToDisplay } from './toolMapping.js';
 import {
   useToolScheduler,
@@ -132,6 +133,33 @@ function calculateStreamingState(
   }
 
   return StreamingState.Idle;
+}
+
+/**
+ * Determines if a tool call should be visible in the history/pending log.
+ * Tools with their own specialized UI are hidden while in progress.
+ */
+function isToolVisible(tc: TrackedToolCall, isEventDriven: boolean): boolean {
+  // If EDS is enabled, tools in pre-execution states are hidden from history
+  // (they appear in the Global Queue instead).
+  if (
+    isEventDriven &&
+    ['scheduled', 'validating', 'awaiting_approval'].includes(tc.status)
+  ) {
+    return false;
+  }
+
+  // Tools with specialized UIs are hidden while actively processing (Executing/Confirming).
+  if (
+    isToolWithCustomUI(tc.request.name) &&
+    ['executing', 'awaiting_approval', 'scheduled', 'validating'].includes(
+      tc.status,
+    )
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -332,14 +360,20 @@ export const useGeminiStream = (
     addItem,
   ]);
 
+  const isEventDriven = config.isEventDrivenSchedulerEnabled();
+
   const pendingToolGroupItems = useMemo((): HistoryItemWithoutId[] => {
     const remainingTools = toolCalls.filter(
       (tc) => !pushedToolCallIds.has(tc.request.callId),
     );
 
+    const anyVisibleInPending = remainingTools.some((tc) =>
+      isToolVisible(tc, isEventDriven),
+    );
+
     const items: HistoryItemWithoutId[] = [];
 
-    if (remainingTools.length > 0) {
+    if (remainingTools.length > 0 && anyVisibleInPending) {
       items.push(
         mapTrackedToolCallsToDisplay(remainingTools, {
           borderTop: pushedToolCallIds.size === 0,
@@ -364,16 +398,7 @@ export const useGeminiStream = (
       toolCalls.length > 0 &&
       toolCalls.every((tc) => pushedToolCallIds.has(tc.request.callId));
 
-    const isEventDriven = config.isEventDrivenSchedulerEnabled();
     const anyVisibleInHistory = pushedToolCallIds.size > 0;
-    const anyVisibleInPending = remainingTools.some((tc) => {
-      if (!isEventDriven) return true;
-      return (
-        tc.status !== 'scheduled' &&
-        tc.status !== 'validating' &&
-        tc.status !== 'awaiting_approval'
-      );
-    });
 
     if (
       toolCalls.length > 0 &&
@@ -389,7 +414,7 @@ export const useGeminiStream = (
     }
 
     return items;
-  }, [toolCalls, pushedToolCallIds, config]);
+  }, [toolCalls, pushedToolCallIds, isEventDriven]);
 
   const activeToolPtyId = useMemo(() => {
     const executingShellTool = toolCalls?.find(

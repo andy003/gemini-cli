@@ -26,6 +26,7 @@ export const EDIT_TOOL_NAMES = new Set([EDIT_TOOL_NAME, WRITE_FILE_TOOL_NAME]);
 export const ASK_USER_TOOL_NAME = 'ask_user';
 export const ASK_USER_DISPLAY_NAME = 'Ask User';
 export const EXIT_PLAN_MODE_TOOL_NAME = 'exit_plan_mode';
+export const EXIT_PLAN_MODE_DISPLAY_NAME = 'Exit Plan Mode';
 
 /** Prefix used for tools discovered via the toolDiscoveryCommand. */
 export const DISCOVERED_TOOL_PREFIX = 'discovered_tool_';

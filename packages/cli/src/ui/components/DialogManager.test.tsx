@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Text } from 'ink';
 import { type UIState } from '../contexts/UIStateContext.js';
 import { type RestartReason } from '../hooks/useIdeTrustListener.js';
-import { type IdeInfo } from '@google/gemini-cli-core';
+import { type Config, type IdeInfo } from '@google/gemini-cli-core';
 
 // Mock child components
 vi.mock('../IdeIntegrationNudge.js', () => ({
@@ -61,6 +61,36 @@ vi.mock('./IdeTrustChangeDialog.js', () => ({
 vi.mock('./AgentConfigDialog.js', () => ({
   AgentConfigDialog: () => <Text>AgentConfigDialog</Text>,
 }));
+vi.mock('../contexts/AskUserActionsContext.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('../contexts/AskUserActionsContext.js')
+    >();
+  return {
+    ...actual,
+    useAskUserActions: vi.fn().mockReturnValue({
+      request: null,
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    }),
+  };
+});
+vi.mock('./AskUserDialog.js', () => ({
+  AskUserDialog: () => <Text>AskUserDialog</Text>,
+}));
+vi.mock('../contexts/ConfigContext.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../contexts/ConfigContext.js')>();
+  return {
+    ...actual,
+    useConfig: vi.fn().mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => false,
+    }),
+  };
+});
+
+import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
+import { useConfig } from '../contexts/ConfigContext.js';
 
 describe('DialogManager', () => {
   const defaultProps = {
@@ -93,15 +123,57 @@ describe('DialogManager', () => {
     selectedAgentName: undefined,
     selectedAgentDisplayName: undefined,
     selectedAgentDefinition: undefined,
+    planApprovalRequest: null,
   };
+
+  beforeEach(() => {
+    vi.mocked(useAskUserActions).mockReturnValue({
+      request: null,
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    });
+    vi.mocked(useConfig).mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => false,
+    } as unknown as Config);
+  });
 
   it('renders nothing by default', () => {
     const { lastFrame } = renderWithProviders(
       <DialogManager {...defaultProps} />,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { uiState: baseUiState as any },
+      { uiState: baseUiState as unknown as UIState },
     );
     expect(lastFrame()).toBe('');
+  });
+
+  it('renders AskUserDialog when event-driven scheduler is disabled and request is present', () => {
+    vi.mocked(useAskUserActions).mockReturnValue({
+      request: { questions: [], correlationId: '123' },
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    });
+
+    const { lastFrame } = renderWithProviders(
+      <DialogManager {...defaultProps} />,
+      { uiState: baseUiState as unknown as UIState },
+    );
+    expect(lastFrame()).toContain('AskUserDialog');
+  });
+
+  it('does not render AskUserDialog when event-driven scheduler is enabled', () => {
+    vi.mocked(useConfig).mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => true,
+    } as unknown as Config);
+    vi.mocked(useAskUserActions).mockReturnValue({
+      request: { questions: [], correlationId: '123' },
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    });
+
+    const { lastFrame } = renderWithProviders(
+      <DialogManager {...defaultProps} />,
+      { uiState: baseUiState as unknown as UIState },
+    );
+    expect(lastFrame()).not.toContain('AskUserDialog');
   });
 
   const testCases: Array<[Partial<UIState>, string]> = [

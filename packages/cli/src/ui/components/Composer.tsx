@@ -28,6 +28,8 @@ import { ApprovalMode } from '@google/gemini-cli-core';
 import { StreamingState } from '../types.js';
 import { ConfigInitDisplay } from '../components/ConfigInitDisplay.js';
 import { TodoTray } from './messages/Todo.js';
+import { useConfirmingTool } from '../hooks/useConfirmingTool.js';
+import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
 
 export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
   const config = useConfig();
@@ -46,6 +48,18 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
   const suggestionsPosition = isAlternateBuffer ? 'above' : 'below';
   const hideContextSummary =
     suggestionsVisible && suggestionsPosition === 'above';
+
+  const confirmingTool = useConfirmingTool();
+  const { request: askUserRequest } = useAskUserActions();
+  const isEventDriven = config.isEventDrivenSchedulerEnabled();
+
+  const isInlineRequestActive =
+    isEventDriven &&
+    (confirmingTool !== null ||
+      askUserRequest !== null ||
+      uiState.planApprovalRequest !== null);
+
+  const showInputPrompt = uiState.isInputActive && !isInlineRequestActive;
 
   return (
     <Box
@@ -121,7 +135,7 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
         </OverflowProvider>
       )}
 
-      {uiState.isInputActive && (
+      {showInputPrompt && (
         <InputPrompt
           buffer={uiState.buffer}
           inputWidth={uiState.inputWidth}

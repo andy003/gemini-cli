@@ -22,15 +22,32 @@ vi.mock('../contexts/VimModeContext.js', () => ({
     vimMode: 'NORMAL',
   })),
 }));
-import { ApprovalMode } from '@google/gemini-cli-core';
-import { StreamingState } from '../types.js';
+import {
+  ApprovalMode,
+  type PlanApprovalRequest,
+} from '@google/gemini-cli-core';
+import { StreamingState, type IndividualToolCallDisplay } from '../types.js';
 import { mergeSettings } from '../../config/settings.js';
+import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
+import { useConfirmingTool } from '../hooks/useConfirmingTool.js';
 
 // Mock child components
 vi.mock('./LoadingIndicator.js', () => ({
   LoadingIndicator: ({ thought }: { thought?: string }) => (
     <Text>LoadingIndicator{thought ? `: ${thought}` : ''}</Text>
   ),
+}));
+
+vi.mock('../contexts/AskUserActionsContext.js', () => ({
+  useAskUserActions: vi.fn(() => ({
+    request: null,
+    submit: vi.fn(),
+    cancel: vi.fn(),
+  })),
+}));
+
+vi.mock('../hooks/useConfirmingTool.js', () => ({
+  useConfirmingTool: vi.fn(() => null),
 }));
 
 vi.mock('./ContextSummaryDisplay.js', () => ({
@@ -150,6 +167,7 @@ const createMockConfig = (overrides = {}) => ({
   getDebugMode: vi.fn(() => false),
   getAccessibility: vi.fn(() => ({})),
   getMcpServers: vi.fn(() => ({})),
+  isEventDrivenSchedulerEnabled: vi.fn(() => false),
   getToolRegistry: () => ({
     getTool: vi.fn(),
   }),
@@ -415,6 +433,60 @@ describe('Composer', () => {
       });
 
       const { lastFrame } = renderComposer(uiState);
+
+      expect(lastFrame()).not.toContain('InputPrompt');
+    });
+
+    it('does not render InputPrompt when event-driven scheduler is enabled and an inline request is active', () => {
+      const uiState = createMockUIState({
+        isInputActive: true,
+        planApprovalRequest: {
+          correlationId: 'test',
+        } as unknown as PlanApprovalRequest,
+      });
+      const config = createMockConfig({
+        isEventDrivenSchedulerEnabled: vi.fn(() => true),
+      });
+
+      const { lastFrame } = renderComposer(uiState, undefined, config);
+
+      expect(lastFrame()).not.toContain('InputPrompt');
+    });
+
+    it('does not render InputPrompt when event-driven scheduler is enabled and ask_user is active', () => {
+      const uiState = createMockUIState({
+        isInputActive: true,
+      });
+      const config = createMockConfig({
+        isEventDrivenSchedulerEnabled: vi.fn(() => true),
+      });
+
+      vi.mocked(useAskUserActions).mockReturnValue({
+        request: { questions: [], correlationId: 'test' },
+        submit: vi.fn(),
+        cancel: vi.fn(),
+      });
+
+      const { lastFrame } = renderComposer(uiState, undefined, config);
+
+      expect(lastFrame()).not.toContain('InputPrompt');
+    });
+
+    it('does not render InputPrompt when event-driven scheduler is enabled and tool confirmation is active', () => {
+      const uiState = createMockUIState({
+        isInputActive: true,
+      });
+      const config = createMockConfig({
+        isEventDrivenSchedulerEnabled: vi.fn(() => true),
+      });
+
+      vi.mocked(useConfirmingTool).mockReturnValue({
+        tool: {} as unknown as IndividualToolCallDisplay,
+        index: 1,
+        total: 1,
+      });
+
+      const { lastFrame } = renderComposer(uiState, undefined, config);
 
       expect(lastFrame()).not.toContain('InputPrompt');
     });

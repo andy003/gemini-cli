@@ -14,8 +14,11 @@ import { ShellToolMessage } from './ShellToolMessage.js';
 import { ToolConfirmationMessage } from './ToolConfirmationMessage.js';
 import { theme } from '../../semantic-colors.js';
 import { useConfig } from '../../contexts/ConfigContext.js';
-import { isShellTool, isThisShellFocused } from './ToolShared.js';
-import { ASK_USER_DISPLAY_NAME } from '@google/gemini-cli-core';
+import {
+  isShellTool,
+  isThisShellFocused,
+  isToolWithCustomUI,
+} from './ToolShared.js';
 import { ShowMoreLines } from '../ShowMoreLines.js';
 import { useUIState } from '../../contexts/UIStateContext.js';
 
@@ -32,9 +35,9 @@ interface ToolGroupMessageProps {
   borderBottom?: boolean;
 }
 
-// Helper to identify Ask User tools that are in progress (have their own dialog UI)
-const isAskUserInProgress = (t: IndividualToolCallDisplay): boolean =>
-  t.name === ASK_USER_DISPLAY_NAME &&
+// Helper to identify tools that are in progress and have their own specialised UI (dialogs, etc.)
+const isToolWithCustomUIInProgress = (t: IndividualToolCallDisplay): boolean =>
+  isToolWithCustomUI(t.name) &&
   [
     ToolCallStatus.Pending,
     ToolCallStatus.Executing,
@@ -52,9 +55,9 @@ export const ToolGroupMessage: React.FC<ToolGroupMessageProps> = ({
   borderTop: borderTopOverride,
   borderBottom: borderBottomOverride,
 }) => {
-  // Filter out in-progress Ask User tools (they have their own AskUserDialog UI)
+  // Filter out in-progress tools that have their own specialized UI
   const toolCalls = useMemo(
-    () => allToolCalls.filter((t) => !isAskUserInProgress(t)),
+    () => allToolCalls.filter((t) => !isToolWithCustomUIInProgress(t)),
     [allToolCalls],
   );
 

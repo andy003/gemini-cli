@@ -77,6 +77,38 @@ vi.mock('./ShowMoreLines.js', () => ({
   ShowMoreLines: () => <Text>ShowMoreLines</Text>,
 }));
 
+vi.mock('../contexts/AskUserActionsContext.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('../contexts/AskUserActionsContext.js')
+    >();
+  return {
+    ...actual,
+    useAskUserActions: vi.fn().mockReturnValue({
+      request: null,
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    }),
+  };
+});
+
+vi.mock('./AskUserDialog.js', () => ({
+  AskUserDialog: ({ inline }: { inline?: boolean }) => (
+    <Text>AskUserDialog (inline: {String(inline)})</Text>
+  ),
+}));
+
+vi.mock('../contexts/ConfigContext.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../contexts/ConfigContext.js')>();
+  return {
+    ...actual,
+    useConfig: vi.fn().mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => false,
+    }),
+  };
+});
+
 vi.mock('./shared/ScrollableList.js', () => ({
   ScrollableList: ({
     data,
@@ -96,10 +128,21 @@ vi.mock('./shared/ScrollableList.js', () => ({
 }));
 
 import { useAlternateBuffer } from '../hooks/useAlternateBuffer.js';
+import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
+import { useConfig } from '../contexts/ConfigContext.js';
+import { type Config } from '@google/gemini-cli-core';
 
 describe('MainContent', () => {
   beforeEach(() => {
     vi.mocked(useAlternateBuffer).mockReturnValue(false);
+    vi.mocked(useAskUserActions).mockReturnValue({
+      request: null,
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    });
+    vi.mocked(useConfig).mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => false,
+    } as unknown as Config);
   });
 
   it('renders in normal buffer mode', async () => {
@@ -129,5 +172,35 @@ describe('MainContent', () => {
     const output = lastFrame();
 
     expect(output).toMatchSnapshot();
+  });
+
+  it('renders AskUserDialog when event-driven scheduler is enabled and request is present', async () => {
+    vi.mocked(useConfig).mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => true,
+    } as unknown as Config);
+    vi.mocked(useAskUserActions).mockReturnValue({
+      request: { questions: [], correlationId: '123' },
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    });
+
+    const { lastFrame } = renderWithProviders(<MainContent />);
+    await waitFor(() =>
+      expect(lastFrame()).toContain('AskUserDialog (inline: true)'),
+    );
+  });
+
+  it('does not render AskUserDialog when event-driven scheduler is disabled', async () => {
+    vi.mocked(useConfig).mockReturnValue({
+      isEventDrivenSchedulerEnabled: () => false,
+    } as unknown as Config);
+    vi.mocked(useAskUserActions).mockReturnValue({
+      request: { questions: [], correlationId: '123' },
+      submit: vi.fn(),
+      cancel: vi.fn(),
+    });
+
+    const { lastFrame } = renderWithProviders(<MainContent />);
+    await waitFor(() => expect(lastFrame()).not.toContain('AskUserDialog'));
   });
 });

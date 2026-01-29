@@ -12,12 +12,16 @@ import {
   ApprovalMode,
 } from '@google/gemini-cli-core';
 import { AskUserDialog } from './AskUserDialog.js';
+import { useAlternateBuffer } from '../hooks/useAlternateBuffer.js';
 
 interface PlanApprovalDialogProps {
   planContent?: string;
   onApprove: (mode: ApprovalMode) => void;
   onFeedback: (feedback: string) => void;
   onCancel: () => void;
+  inline?: boolean;
+  width?: number;
+  shouldConstrainHeight?: boolean;
 }
 
 const APPROVE_MANUAL_OPTION = 'Yes, manually accept edits';
@@ -28,7 +32,14 @@ export const PlanApprovalDialog: React.FC<PlanApprovalDialogProps> = ({
   onApprove,
   onFeedback,
   onCancel,
+  inline = false,
+  width,
+  shouldConstrainHeight,
 }) => {
+  const isAlternateBuffer = useAlternateBuffer();
+  const effectiveShouldConstrainHeight =
+    shouldConstrainHeight ?? !isAlternateBuffer;
+
   const questions = useMemo(
     (): Question[] => [
       {
@@ -71,6 +82,10 @@ export const PlanApprovalDialog: React.FC<PlanApprovalDialogProps> = ({
       questions={questions}
       onSubmit={handleSubmit}
       onCancel={onCancel}
+      inline={inline}
+      width={width}
+      shouldConstrainHeight={effectiveShouldConstrainHeight}
+      title="Plan Approval"
     />
   );
 };

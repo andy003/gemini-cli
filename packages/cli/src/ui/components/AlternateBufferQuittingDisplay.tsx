@@ -15,15 +15,23 @@ import { useConfirmingTool } from '../hooks/useConfirmingTool.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { ToolStatusIndicator, ToolInfo } from './messages/ToolShared.js';
 import { theme } from '../semantic-colors.js';
+import { useAskUserActions } from '../contexts/AskUserActionsContext.js';
+import { AskUserDialog } from './AskUserDialog.js';
 
 export const AlternateBufferQuittingDisplay = () => {
   const { version } = useAppContext();
   const uiState = useUIState();
   const config = useConfig();
+  const {
+    request: askUserRequest,
+    submit: askUserSubmit,
+    cancel: askUserCancel,
+  } = useAskUserActions();
 
   const confirmingTool = useConfirmingTool();
-  const showPromptedTool =
-    config.isEventDrivenSchedulerEnabled() && confirmingTool !== null;
+  const isEventDriven = config.isEventDrivenSchedulerEnabled();
+  const showPromptedTool = isEventDriven && confirmingTool !== null;
+  const showAskUserQueue = isEventDriven && askUserRequest !== null;
 
   // We render the entire chat history and header here to ensure that the
   // conversation history is visible to the user after the app quits and the
@@ -79,6 +87,13 @@ export const AlternateBufferQuittingDisplay = () => {
             />
           </Box>
         </Box>
+      )}
+      {showAskUserQueue && askUserRequest && (
+        <AskUserDialog
+          questions={askUserRequest.questions}
+          onSubmit={askUserSubmit}
+          onCancel={askUserCancel}
+        />
       )}
       <QuittingDisplay />
     </Box>

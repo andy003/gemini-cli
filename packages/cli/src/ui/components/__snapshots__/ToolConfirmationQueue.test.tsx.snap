@@ -38,8 +38,7 @@ exports[`ToolConfirmationQueue > does not render expansion hint when constrainHe
 │   3. Modify with external editor                                             │
 │   4. No, suggest changes (esc)                                               │
 │                                                                              │
-╰──────────────────────────────────────────────────────────────────────────────╯
-"
+╰──────────────────────────────────────────────────────────────────────────────╯"
 `;
 
 exports[`ToolConfirmationQueue > renders expansion hint when content is long and constrained 1`] = `
@@ -88,6 +87,5 @@ exports[`ToolConfirmationQueue > renders the confirming tool with progress indic
 │   2. Allow for this session                                                  │
 │   3. No, suggest changes (esc)                                               │
 │                                                                              │
-╰──────────────────────────────────────────────────────────────────────────────╯
-"
+╰──────────────────────────────────────────────────────────────────────────────╯"
 `;
