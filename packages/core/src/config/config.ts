@@ -1843,8 +1843,10 @@ export class Config {
   async getNumericalRoutingEnabled(): Promise<boolean> {
     await this.ensureExperimentsLoaded();
 
-    return !!this.experiments?.flags[ExperimentFlags.ENABLE_NUMERICAL_ROUTING]
-      ?.boolValue;
+    return (
+      this.experiments?.flags[ExperimentFlags.ENABLE_NUMERICAL_ROUTING]
+        ?.boolValue ?? true
+    );
   }
 
   async getClassifierThreshold(): Promise<number | undefined> {
@@ -1854,7 +1856,7 @@ export class Config {
     if (flag?.intValue !== undefined) {
       return parseInt(flag.intValue, 10);
     }
-    return flag?.floatValue;
+    return flag?.floatValue ?? 75;
   }
 
   async getBannerTextNoCapacityIssues(): Promise<string> {
