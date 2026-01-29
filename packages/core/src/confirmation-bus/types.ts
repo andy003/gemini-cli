@@ -158,6 +158,8 @@ export interface Question {
   multiSelect?: boolean;
   /** Placeholder hint text. Only applies when type='text'. */
   placeholder?: string;
+  /** Content to display before the question (e.g., a plan for approval). Supports markdown. */
+  context?: string;
 }
 
 export interface AskUserRequest {

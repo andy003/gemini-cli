@@ -92,6 +92,11 @@ export class AskUserTool extends BaseDeclarativeTool<
                   description:
                     "Only applies when type='text'. Hint text shown in the input field.",
                 },
+                context: {
+                  type: 'string',
+                  description:
+                    'Optional content to display before the question (e.g., a plan for approval). Supports markdown.',
+                },
               },
             },
           },

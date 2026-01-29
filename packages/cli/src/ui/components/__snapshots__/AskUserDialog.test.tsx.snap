@@ -1,5 +1,41 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`AskUserDialog > Context field > renders context before choice question 1`] = `
+"## Implementation Plan
+
+1. Add authentication
+2. Create user service
+3. Update routes
+
+Do you approve this plan?
+
+● 1.  Approve
+  2.  Reject
+  3.  Enter a custom value
+
+Enter to select · ↑/↓ to navigate · Esc to cancel"
+`;
+
+exports[`AskUserDialog > Context field > renders context before text question 1`] = `
+"\`javascript                        \`
+ function findDuplicate(nums) {
+   const seen = new Set();
+   for (const num of nums) {
+     if (seen.has(num)) return num;
+     seen.add(num);
+   }
+   return -1;
+ }
+
+
+What is the time complexity of this function?
+
+> Enter your response
+
+
+Enter to submit · Esc to cancel"
+`;
+
 exports[`AskUserDialog > Text type questions > renders text input for type: "text" 1`] = `
 "What should we name this component?
 

@@ -29,6 +29,7 @@ import { getCachedStringWidth } from '../utils/textUtils.js';
 import { useTabbedNavigation } from '../hooks/useTabbedNavigation.js';
 import { DialogFooter } from './shared/DialogFooter.js';
 import { MaxSizedBox } from './shared/MaxSizedBox.js';
+import { RenderInline } from '../utils/InlineMarkdownRenderer.js';
 
 interface AskUserDialogState {
   answers: { [key: string]: string };
@@ -277,6 +278,14 @@ const TextQuestionView: React.FC<TextQuestionViewProps> = ({
   return (
     <Box flexDirection="column">
       {progressHeader}
+      {question.context && (
+        <Box marginBottom={1}>
+          <RenderInline
+            text={question.context}
+            defaultColor={theme.text.primary}
+          />
+        </Box>
+      )}
       <Box marginBottom={1}>
         <Text bold color={theme.text.primary}>
           {question.question}
@@ -697,6 +706,14 @@ const ChoiceQuestionView: React.FC<ChoiceQuestionViewProps> = ({
   return (
     <Box flexDirection="column">
       {progressHeader}
+      {question.context && (
+        <Box marginBottom={1}>
+          <RenderInline
+            text={question.context}
+            defaultColor={theme.text.primary}
+          />
+        </Box>
+      )}
       <Box marginBottom={1}>
         <Text bold color={theme.text.primary}>
           {question.question}

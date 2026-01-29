@@ -872,4 +872,66 @@ describe('AskUserDialog', () => {
       });
     });
   });
+
+  describe('Context field', () => {
+    it('renders context before choice question', () => {
+      const questionWithContext: Question[] = [
+        {
+          question: 'Do you approve this plan?',
+          header: 'Plan',
+          context: `## Implementation Plan
+
+1. Add authentication
+2. Create user service
+3. Update routes`,
+          options: [
+            { label: 'Approve', description: '' },
+            { label: 'Reject', description: '' },
+          ],
+        },
+      ];
+
+      const { lastFrame } = renderWithProviders(
+        <AskUserDialog
+          questions={questionWithContext}
+          onSubmit={vi.fn()}
+          onCancel={vi.fn()}
+        />,
+        { width: 120 },
+      );
+
+      expect(lastFrame()).toMatchSnapshot();
+    });
+
+    it('renders context before text question', () => {
+      const questionWithContext: Question[] = [
+        {
+          question: 'What is the time complexity of this function?',
+          header: 'Answer',
+          type: QuestionType.TEXT,
+          context: `\`\`\`javascript
+function findDuplicate(nums) {
+  const seen = new Set();
+  for (const num of nums) {
+    if (seen.has(num)) return num;
+    seen.add(num);
+  }
+  return -1;
+}
+\`\`\``,
+        },
+      ];
+
+      const { lastFrame } = renderWithProviders(
+        <AskUserDialog
+          questions={questionWithContext}
+          onSubmit={vi.fn()}
+          onCancel={vi.fn()}
+        />,
+        { width: 120 },
+      );
+
+      expect(lastFrame()).toMatchSnapshot();
+    });
+  });
 });
