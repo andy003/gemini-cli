@@ -55,6 +55,7 @@ import {
   cleanupOldClipboardImages,
   splitEscapedPaths,
   parsePastedPaths,
+  resetClipboardToolForTesting,
 } from './clipboardUtils.js';
 
 // Define the type for the module to use in tests
@@ -73,6 +74,7 @@ describe('clipboardUtils', () => {
     process.env = { ...originalEnv };
 
     // Reset modules to clear internal state (linuxClipboardTool variable)
+    resetClipboardToolForTesting();
     vi.resetModules();
     // Dynamically import the module to get a fresh instance for each test
     clipboardUtils = await import('./clipboardUtils.js');
@@ -305,6 +307,8 @@ describe('clipboardUtils', () => {
     });
 
     it('should return null if tool is not yet detected', async () => {
+      setPlatform('linux');
+      delete process.env['XDG_SESSION_TYPE'];
       // Don't prime the tool
       const result = await clipboardUtils.saveClipboardImage(mockTargetDir);
       expect(result).toBe(null);

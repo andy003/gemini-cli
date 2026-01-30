@@ -623,6 +623,7 @@ describe('CodeAssistServer', () => {
       {},
       'test-session',
       UserTierId.FREE,
+      undefined,
       onQuotaUpdate,
     );
 

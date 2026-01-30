@@ -368,11 +368,12 @@ describe('createContentGenerator', () => {
     expect(GoogleGenAI).toHaveBeenCalledWith({
       apiKey: 'test-api-key',
       vertexai: undefined,
-      httpOptions: {
+      httpOptions: expect.objectContaining({
         headers: expect.objectContaining({
           'User-Agent': expect.any(String),
         }),
-      },
+        fetch: expect.any(Function),
+      }),
       apiVersion: 'v1',
     });
   });
@@ -401,11 +402,12 @@ describe('createContentGenerator', () => {
     expect(GoogleGenAI).toHaveBeenCalledWith({
       apiKey: 'test-api-key',
       vertexai: undefined,
-      httpOptions: {
+      httpOptions: expect.objectContaining({
         headers: expect.objectContaining({
           'User-Agent': expect.any(String),
         }),
-      },
+        fetch: expect.any(Function),
+      }),
     });
 
     expect(GoogleGenAI).toHaveBeenCalledWith(
@@ -440,11 +442,12 @@ describe('createContentGenerator', () => {
     expect(GoogleGenAI).toHaveBeenCalledWith({
       apiKey: 'test-api-key',
       vertexai: undefined,
-      httpOptions: {
+      httpOptions: expect.objectContaining({
         headers: expect.objectContaining({
           'User-Agent': expect.any(String),
         }),
-      },
+        fetch: expect.any(Function),
+      }),
     });
 
     expect(GoogleGenAI).toHaveBeenCalledWith(
@@ -480,11 +483,12 @@ describe('createContentGenerator', () => {
     expect(GoogleGenAI).toHaveBeenCalledWith({
       apiKey: 'test-api-key',
       vertexai: true,
-      httpOptions: {
+      httpOptions: expect.objectContaining({
         headers: expect.objectContaining({
           'User-Agent': expect.any(String),
         }),
-      },
+        fetch: expect.any(Function),
+      }),
       apiVersion: 'v1alpha',
     });
   });

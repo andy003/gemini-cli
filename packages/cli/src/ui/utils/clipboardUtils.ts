@@ -35,6 +35,14 @@ const PATH_PREFIX_PATTERN = /^([/~.]|[a-zA-Z]:|\\\\)/;
 // Track which tool works on Linux to avoid redundant checks/failures
 let linuxClipboardTool: 'wl-paste' | 'xclip' | null = null;
 
+/**
+ * Resets the cached Linux clipboard tool.
+ * Only intended for use in unit tests.
+ */
+export function resetClipboardToolForTesting() {
+  linuxClipboardTool = null;
+}
+
 // Helper to check the user's display server and whether they have a compatible clipboard tool installed
 function getUserLinuxClipboardTool(): typeof linuxClipboardTool {
   if (linuxClipboardTool !== null) {
