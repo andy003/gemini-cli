@@ -32,6 +32,7 @@ describe('ObservationMaskingService', () => {
       storage: {
         getHistoryDir: () => '/mock/history',
       },
+      getUsageStatisticsEnabled: () => false,
     } as unknown as Config;
     vi.clearAllMocks();
   });

@@ -10,6 +10,8 @@ import * as fsPromises from 'node:fs/promises';
 import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import type { Config } from '../config/config.js';
+import { logObservationMasking } from '../telemetry/loggers.js';
+import { ObservationMaskingEvent } from '../telemetry/types.js';
 
 export const TOOL_PROTECTION_THRESHOLD = 50_000;
 export const HYSTERESIS_THRESHOLD = 30_000;
@@ -176,11 +178,23 @@ export class ObservationMaskingService {
       `[ObservationMasking] Masked ${prunableParts.length} tool outputs. Saved ~${actualTokensSaved.toLocaleString()} tokens.`,
     );
 
-    return {
+    const result = {
       newHistory,
       maskedCount: prunableParts.length,
       tokensSaved: actualTokensSaved,
     };
+
+    logObservationMasking(
+      config,
+      new ObservationMaskingEvent({
+        tokens_before: totalPrunableTokens,
+        tokens_after: totalPrunableTokens - actualTokensSaved,
+        masked_count: prunableParts.length,
+        total_prunable_tokens: totalPrunableTokens,
+      }),
+    );
+
+    return result;
   }
 
   private getObservationContent(part: Part): string | null {

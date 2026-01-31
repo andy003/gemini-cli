@@ -44,6 +44,7 @@ import type {
   HookCallEvent,
   ApprovalModeSwitchEvent,
   ApprovalModeDurationEvent,
+  ObservationMaskingEvent,
 } from '../types.js';
 import { EventMetadataKey } from './event-metadata-key.js';
 import type { Config } from '../../config/config.js';
@@ -104,6 +105,7 @@ export enum EventNames {
   HOOK_CALL = 'hook_call',
   APPROVAL_MODE_SWITCH = 'approval_mode_switch',
   APPROVAL_MODE_DURATION = 'approval_mode_duration',
+  OBSERVATION_MASKING = 'observation_masking',
 }
 
 export interface LogResponse {
@@ -1201,8 +1203,40 @@ export class ClearcutLogger {
       },
     ];
 
+    const logEvent = this.createLogEvent(
+      EventNames.TOOL_OUTPUT_TRUNCATED,
+      data,
+    );
+    this.enqueueLogEvent(logEvent);
+    this.flushIfNeeded();
+  }
+
+  logObservationMaskingEvent(event: ObservationMaskingEvent): void {
+    const data: EventValue[] = [
+      {
+        gemini_cli_key:
+          EventMetadataKey.GEMINI_CLI_OBSERVATION_MASKING_TOKENS_BEFORE,
+        value: event.tokens_before.toString(),
+      },
+      {
+        gemini_cli_key:
+          EventMetadataKey.GEMINI_CLI_OBSERVATION_MASKING_TOKENS_AFTER,
+        value: event.tokens_after.toString(),
+      },
+      {
+        gemini_cli_key:
+          EventMetadataKey.GEMINI_CLI_OBSERVATION_MASKING_MASKED_COUNT,
+        value: event.masked_count.toString(),
+      },
+      {
+        gemini_cli_key:
+          EventMetadataKey.GEMINI_CLI_OBSERVATION_MASKING_TOTAL_PRUNABLE_TOKENS,
+        value: event.total_prunable_tokens.toString(),
+      },
+    ];
+
     this.enqueueLogEvent(
-      this.createLogEvent(EventNames.TOOL_OUTPUT_TRUNCATED, data),
+      this.createLogEvent(EventNames.OBSERVATION_MASKING, data),
     );
     this.flushIfNeeded();
   }

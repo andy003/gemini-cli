@@ -542,4 +542,20 @@ export enum EventMetadataKey {
 
   // Logs the duration spent in an approval mode in milliseconds.
   GEMINI_CLI_APPROVAL_MODE_DURATION_MS = 143,
+
+  // ==========================================================================
+  // Observation Masking Event Keys
+  // ==========================================================================
+
+  // Logs the total tokens in the prunable block before masking.
+  GEMINI_CLI_OBSERVATION_MASKING_TOKENS_BEFORE = 144,
+
+  // Logs the total tokens in the masked remnants after masking.
+  GEMINI_CLI_OBSERVATION_MASKING_TOKENS_AFTER = 145,
+
+  // Logs the number of tool outputs masked in this operation.
+  GEMINI_CLI_OBSERVATION_MASKING_MASKED_COUNT = 146,
+
+  // Logs the total prunable tokens identified at the trigger point.
+  GEMINI_CLI_OBSERVATION_MASKING_TOTAL_PRUNABLE_TOKENS = 147,
 }
